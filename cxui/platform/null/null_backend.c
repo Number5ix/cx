@@ -25,6 +25,7 @@ static string nullClipboard;            // UI thread only
 static bool nullClipboardHasText;
 static CxUiMonitor nullMonitors[4];     // UI thread only
 static int32 nullMonitorCount;
+static uint32 nullLockMax;              // the best pointer lock the backend gives; UI thread only
 
 static void nullWakeInitOnce(void* unused)
 {
@@ -47,16 +48,25 @@ static bool nullInit(flags_t flags)
     nullFocus          = NULL;
     nullMeasures       = 0;
     nullTextNative     = (CxUiSize){ 0 };
+    nullLockMax        = CXUI_POINTERLOCK_Raw;
+    for (int32 i = 0; i < nullMonitorCount; i++)
+        cxuiMonitorDestroy(&nullMonitors[i]);
     nullMonitorCount   = 1;
-    nullMonitors[0]    = (CxUiMonitor){ .bounds   = { 0, 0, 1920, 1080 },
-                                        .workArea = { 0, 0, 1920, 1040 },
-                                        .scale    = 1.0f,
-                                        .flags    = CXUI_MON_Primary | CXUI_MON_WorkAreaKnown | CXUI_MON_PositionKnown };
+    nullMonitors[0]    = (CxUiMonitor){ .bounds    = { 0, 0, 1920, 1080 },
+                                        .workArea  = { 0, 0, 1920, 1040 },
+                                        .scale     = 1.0f,
+                                        .flags     = CXUI_MON_Primary | CXUI_MON_WorkAreaKnown | CXUI_MON_PositionKnown,
+                                        .refreshHz = 60.0f };
+    strDup(&nullMonitors[0].id, _S"null-0");
+    strDup(&nullMonitors[0].name, _S"Null Monitor");
     return true;
 }
 
 static void nullShutdown(void)
 {
+    for (int32 i = 0; i < nullMonitorCount; i++)
+        cxuiMonitorDestroy(&nullMonitors[i]);
+    nullMonitorCount = 0;
     htDestroy(&nullTips);
     strDestroy(&nullClipboard);
     nullClipboardHasText = false;
@@ -105,6 +115,11 @@ typedef struct NullPeer {
     CxUiPoint pos;
     uint32 mode;
     uint32 state;   // CxUiWindowStates
+    // CxUiFullscreen, the monitor it covers, and the state to go back to
+    uint32 fullscreen;
+    CxUiRect fsMonitor;
+    uint32 fsFrom;
+    bool topmost;
     bool visible;
     bool dark;
     bool disabled;
@@ -256,11 +271,32 @@ static CxUiPeer* nullWindowCreate(CxUiWindow* w)
 
 static void nullWindowShow(CxUiPeer* p, uint32 mode)
 {
-    ((NullPeer*)p)->visible = true;
-    ((NullPeer*)p)->mode    = mode;
-    ((NullPeer*)p)->state   = mode == CXUI_SHOW_Maximized   ? CXUI_WINDOW_Maximized
-                              : mode == CXUI_SHOW_Minimized ? CXUI_WINDOW_Minimized
-                                                            : CXUI_WINDOW_Normal;
+    NullPeer* np = (NullPeer*)p;
+    np->visible  = true;
+    np->mode     = mode;
+    // The core takes a window out of fullscreen itself.
+    if (np->fullscreen && mode != CXUI_SHOW_Minimized)
+        return;
+    np->state = mode == CXUI_SHOW_Maximized   ? CXUI_WINDOW_Maximized
+                : mode == CXUI_SHOW_Minimized ? CXUI_WINDOW_Minimized
+                                              : CXUI_WINDOW_Normal;
+}
+
+// Reports the change, as a platform does.
+static bool nullWindowSetFullscreen(CxUiPeer* peer, uint32 mode, const CxUiMonitor* mon)
+{
+    NullPeer* p = (NullPeer*)peer;
+    devAssertMsg(p->visible, "fullscreen on a hidden window");
+    if (mode != CXUI_FULLSCREEN_None && p->fullscreen == CXUI_FULLSCREEN_None)
+        p->fsFrom = p->state == CXUI_WINDOW_Minimized ? CXUI_WINDOW_Normal : p->state;
+    p->fullscreen = mode;
+    p->fsMonitor  = mode != CXUI_FULLSCREEN_None && mon ? mon->bounds : (CxUiRect){ 0 };
+    uint32 state  = mode != CXUI_FULLSCREEN_None ? CXUI_WINDOW_Fullscreen : p->fsFrom;
+    if (state != p->state) {
+        p->state = state;
+        _cxuiWindowStateChanged(peer, state);
+    }
+    return true;
 }
 
 static void nullWindowHide(CxUiPeer* p)
@@ -582,6 +618,14 @@ typedef struct NullCanvas {
     bool hidden;
     bool captured;
     uint32 cursor;
+    CxUiCursor* cursorImage;   // not a reference: the core holds it while it is set
+    CxUiPoint warpedTo;
+    int32 warps;
+    flags_t textInput;
+    CxUiRect caret;
+    flags_t keyCapture;
+    uint32 lockMode;
+    CxUiPoint lockAt;
     CxUiRect lastDirty;
     int32 paints;
     bool paintQueued;
@@ -1407,6 +1451,43 @@ static void nullCanvasSetCursor(CxUiPeer* p, uint32 cursor)
     ((NullCanvas*)p)->cursor = cursor;
 }
 
+static void nullCanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor)
+{
+    ((NullCanvas*)p)->cursorImage = cursor;
+}
+
+static bool nullCanvasWarpPointer(CxUiPeer* p, CxUiPoint px)
+{
+    ((NullCanvas*)p)->warpedTo = px;
+    ((NullCanvas*)p)->warps++;
+    return true;
+}
+
+static bool nullCanvasSetTextInput(CxUiPeer* p, flags_t flags)
+{
+    ((NullCanvas*)p)->textInput = flags;
+    return true;
+}
+
+static void nullCanvasSetTextCaret(CxUiPeer* p, CxUiRect px)
+{
+    ((NullCanvas*)p)->caret = px;
+}
+
+static bool nullCanvasSetKeyCapture(CxUiPeer* p, flags_t flags)
+{
+    ((NullCanvas*)p)->keyCapture = flags;
+    return true;
+}
+
+static uint32 nullCanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px)
+{
+    NullCanvas* nc = (NullCanvas*)p;
+    nc->lockMode   = min(mode, nullLockMax);
+    nc->lockAt     = px;
+    return nc->lockMode;
+}
+
 static void nullDoubleClick(int64* time, int32* distance)
 {
     *time     = nullDoubleTime;
@@ -1423,7 +1504,36 @@ static float32 nullSystemScaleGet(void)
 static void nullMonitorsGet(sa_CxUiMonitor* out)
 {
     for (int32 i = 0; i < nullMonitorCount; i++)
-        saPush(out, opaque, nullMonitors[i]);
+        saPush(out, CxUiMonitor, nullMonitors[i]);
+}
+
+static bool nullWindowSetTopmost(CxUiPeer* p, bool on)
+{
+    ((NullPeer*)p)->topmost = on;
+    return true;
+}
+
+static bool nullTestTopmost(CxUiPeer* p, bool* topmost)
+{
+    *topmost = ((NullPeer*)p)->topmost;
+    return true;
+}
+
+// The monitor that holds the middle of the window, which is placed in DIPs
+static int32 nullWindowMonitor(CxUiPeer* peer)
+{
+    NullPeer* p = (NullPeer*)peer;
+    int32 x = p->pos.x + p->size.w / 2, y = p->pos.y + p->size.h / 2;
+    if (p->fullscreen && p->fsMonitor.w > 0) {
+        x = p->fsMonitor.x + p->fsMonitor.w / 2;
+        y = p->fsMonitor.y + p->fsMonitor.h / 2;
+    }
+    for (int32 i = 0; i < nullMonitorCount; i++) {
+        CxUiRect b = nullMonitors[i].bounds;
+        if (x >= b.x && y >= b.y && x < b.x + b.w && y < b.y + b.h)
+            return i;
+    }
+    return -1;
 }
 
 static bool nullClipboardSetText(strref text)
@@ -1672,6 +1782,9 @@ bool cxuiTestWindowInfo(CxUiWindow* w, CxUiTestWindowInfo* out)
     out->created = p->created;
     out->pos     = p->pos;
     out->mode    = p->mode;
+    out->state      = p->state;
+    out->fullscreen = p->fullscreen;
+    out->fsMonitor  = p->fsMonitor;
     out->visible = p->visible;
     out->dark    = p->dark;
     out->enabled = !p->disabled;
@@ -1772,6 +1885,14 @@ bool cxuiTestCanvasInfo(CxUiCanvas* cv, CxUiTestCanvasInfo* out)
     out->captured   = nc->captured;
     out->focused    = nullFocus == cv->peer;
     out->cursor     = nc->cursor;
+    out->cursorImage = nc->cursorImage;
+    out->warpedTo    = nc->warpedTo;
+    out->warps       = nc->warps;
+    out->textInput  = nc->textInput;
+    out->caret      = nc->caret;
+    out->keyCapture = nc->keyCapture;
+    out->lockMode   = nc->lockMode;
+    out->lockAt     = nc->lockAt;
     out->paints     = nc->paints;
     out->lastDirty  = nc->lastDirty;
     out->ops        = nc->ops;
@@ -2088,9 +2209,18 @@ bool cxuiTestClipboardRaw(string* out)
 _Use_decl_annotations_
 void cxuiTestSetMonitors(const CxUiMonitor* mons, int32 count)
 {
+    for (int32 i = 0; i < nullMonitorCount; i++)
+        cxuiMonitorDestroy(&nullMonitors[i]);
     nullMonitorCount = clamp(count, 0, (int32)(sizeof(nullMonitors) / sizeof(nullMonitors[0])));
     for (int32 i = 0; i < nullMonitorCount; i++)
-        nullMonitors[i] = mons[i];
+        cxuiMonitorCopy(&nullMonitors[i], &mons[i]);
+}
+
+void cxuiTestMonitorsChanged(void)
+{
+    _cxuiNativeEnter();
+    _cxuiMonitorsChanged();
+    _cxuiNativeLeave();
 }
 
 _Use_decl_annotations_
@@ -2166,6 +2296,58 @@ CxUiResult cxuiTestKey(CxUiWidget* target, CxUiKey key, uint32 mods, bool down)
     return r;
 }
 
+_Use_decl_annotations_
+void cxuiTestText(CxUiCanvas* cv, strref text)
+{
+    if (!cv || !cv->peer)
+        return;
+    _cxuiNativeEnter();
+    _cxuiCanvasText(cv->peer, text);
+    _cxuiNativeLeave();
+}
+
+_Use_decl_annotations_
+void cxuiTestPointerMotion(CxUiCanvas* cv, float32 dx, float32 dy, uint32 mods)
+{
+    if (!cv || !cv->peer)
+        return;
+    _cxuiNativeEnter();
+    _cxuiCanvasPointerMotion(cv->peer, dx, dy, mods);
+    _cxuiNativeLeave();
+}
+
+_Use_decl_annotations_
+void cxuiTestActivate(CxUiWindow* w, bool active)
+{
+    if (!w || !w->peer)
+        return;
+    _cxuiNativeEnter();
+    _cxuiWindowActivated(w->peer, active);
+    _cxuiNativeLeave();
+}
+
+_Use_decl_annotations_
+void cxuiTestOccluded(CxUiWindow* w, bool occluded)
+{
+    if (!w || !w->peer)
+        return;
+    _cxuiNativeEnter();
+    _cxuiWindowOccluded(w->peer, occluded);
+    _cxuiNativeLeave();
+}
+
+_Use_decl_annotations_
+bool cxuiTestTopmost(CxUiWindow* w, bool* topmost)
+{
+    *topmost = false;
+    return w && w->peer && _cxui.backend->testTopmost && _cxui.backend->testTopmost(w->peer, topmost);
+}
+
+void cxuiTestSetPointerLockMax(uint32 mode)
+{
+    nullLockMax = mode;
+}
+
 void cxuiTestSetDoubleClick(int64 time, int32 distance)
 {
     nullDoubleTime     = time;
@@ -2237,6 +2419,10 @@ const CxUiBackend _cxuiNullBackend = {
     .windowSetOwner    = nullWindowSetOwner,
     .windowMoveNear    = nullWindowMoveNear,
     .windowSetEnabled  = nullWindowSetEnabled,
+    .windowSetFullscreen = nullWindowSetFullscreen,
+    .windowMonitor       = nullWindowMonitor,
+    .windowSetTopmost    = nullWindowSetTopmost,
+    .testTopmost         = nullTestTopmost,
 
     .systemScale      = nullSystemScaleGet,
     .canvasCreate     = nullCanvasCreate,
@@ -2252,6 +2438,12 @@ const CxUiBackend _cxuiNullBackend = {
     .peerRaise        = nullPeerRaise,
     .peerSetTip       = nullPeerSetTip,
     .canvasSetCursor  = nullCanvasSetCursor,
+    .canvasSetCursorImage = nullCanvasSetCursorImage,
+    .canvasWarpPointer    = nullCanvasWarpPointer,
+    .canvasSetTextInput  = nullCanvasSetTextInput,
+    .canvasSetTextCaret  = nullCanvasSetTextCaret,
+    .canvasSetKeyCapture = nullCanvasSetKeyCapture,
+    .canvasPointerLock   = nullCanvasPointerLock,
     .doubleClick      = nullDoubleClick,
 
     .panelCreate         = nullPanelCreate,

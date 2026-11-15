@@ -53,6 +53,24 @@
     weak[CxUiWidget] _defaultEsc;
     weak[CxUiWidget] _startFocus;
     bool _shownOnce;
+    // The platform said the window became inactive, and hasn't said it became active since
+    bool _inactive;
+
+    // ---- fullscreen ----
+    // CxUiFullscreen in effect, as far as the core knows
+    uint32 _fullscreen;
+    // A mode set while hidden, applied when the window is next shown
+    uint32 _fsWant;
+    bool _fsPending;
+    // The monitor asked for, matched against the monitors again when applied
+    string _fsMonitorId;
+    CxUiRect _fsMonitor;
+    bool _fsMonitorGiven;
+    // The CxUiWindowStates last reported, and whether the window is hidden behind others
+    uint32 _state;
+    bool _occluded;
+    // Kept above other programs' windows
+    bool _topmost;
 
     // ---- layout ----
     // CxUiWindowSizing, the size asked for (desc or cxuiWindowSetSize), and CxUiWindowFlags; the
@@ -226,6 +244,48 @@
     /// @param owner The owner, or CxUiWindowNone for none. A window that already belongs to this
     /// one, directly or through others, is ignored.
     [prop owner] unbound void setOwner([in] [opt] CxUiWindow* owner);
+
+    /// Makes the window fullscreen, or takes it out of fullscreen
+    ///
+    /// On a hidden window, it happens when the window is next shown. The user can leave
+    /// CXUI_FULLSCREEN_System with the platform's own controls; the show state event
+    /// (cxuiOnShowState()) says when the window enters or leaves fullscreen.
+    ///
+    /// @param mode CxUiFullscreen
+    /// @param monitor The monitor to cover, from cxuiMonitors(), or NULL for the one the window is
+    /// on
+    /// @return false if the platform can't, or the monitor isn't connected
+    unbound bool setFullscreen(uint32 mode, [in] [opt] const CxUiMonitor* monitor);
+
+    /// Gets the window's fullscreen mode
+    /// @return CxUiFullscreen
+    unbound uint32 fullscreen();
+
+    /// Gets the monitor the window is on: the one with most of it
+    /// @return An index into what cxuiMonitors() gives now, or -1 if the window isn't shown or the
+    /// platform can't tell
+    unbound int32 monitor();
+
+    /// Keeps the window above other windows, or lets it go back among them
+    ///
+    /// Set before the window is shown, it applies when it is realized.
+    ///
+    /// @param on true to keep it above
+    /// @return false where the platform can't (Wayland)
+    unbound bool setTopmost(bool on);
+
+    /// Checks whether the window is kept above other windows
+    /// @return true if cxuiWindowSetTopmost() turned it on
+    unbound bool topmost();
+
+    /// Checks whether nothing of the window can be seen, covered by other windows or on another
+    /// desktop
+    ///
+    /// A program can stop drawing while it is. The show state event (cxuiOnShowState()) says when it
+    /// changes.
+    ///
+    /// @return true while the platform says so; always false where it can't tell (Windows)
+    unbound bool occluded();
 
     /// Shows the window as a popup and waits for cxuiWindowEndPopup()
     ///

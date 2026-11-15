@@ -3305,6 +3305,7 @@ UI_TEST(canvascellsdip)
 typedef struct MouseRec {
     uint32 action, button, buttons, flags;
     int32 x, y;
+    float32 dx, dy;
 } MouseRec;
 
 typedef struct InputLog {
@@ -3320,6 +3321,13 @@ typedef struct InputLog {
     bool destroyOnDown;
     CxUiWindow* dragOnDown;   // a Down moves this window
     int32 drags;              // moves cxuiWindowBeginDrag() started
+    bool unlockOnUp;          // an Up lets go of the pointer lock
+    int32 texts;
+    string text;              // what text events brought, run together
+    CxUiWidget* textAt;       // whose text handler ran last
+    int32 winFocus[2];        // the window's focus events: lost, gained
+    uint32 winFocusFlags;     // the last one's flags
+    int32 winFocusAt;         // inlog.nmouse when the last one came
 } InputLog;
 
 static InputLog inlog;
@@ -3328,13 +3336,39 @@ static CxUiResult inMouse(stvlist* cvars, CxUiMouseEvent* ev)
 {
     unused_noeval(cvars);
     if (inlog.nmouse < 32)
-        inlog.mouse[inlog.nmouse] = (MouseRec){ ev->action, ev->button, ev->buttons, ev->flags, ev->x, ev->y };
+        inlog.mouse[inlog.nmouse] = (MouseRec){ ev->action, ev->button, ev->buttons, ev->flags,
+                                                ev->x,      ev->y,      ev->dx,      ev->dy };
     inlog.nmouse++;
     if (inlog.destroyOnDown && ev->action == CXUI_MOUSE_Down)
         cxuiDestroy(ev->base.current);
     if (inlog.dragOnDown && ev->action == CXUI_MOUSE_Down && cxuiWindowBeginDrag(inlog.dragOnDown))
         inlog.drags++;
+    if (inlog.unlockOnUp && ev->action == CXUI_MOUSE_Up)
+        cxuiCanvasSetPointerLock(objDynCast(CxUiCanvas, ev->base.current), CXUI_POINTERLOCK_Off);
     return CXUI_Handled;
+}
+
+static CxUiResult inText(stvlist* cvars, CxUiTextEvent* ev)
+{
+    inlog.texts++;
+    strAppend(&inlog.text, ev->text);
+    inlog.textAt = ev->base.current;
+    return (CxUiResult)stvlAt(cvars, 0, int32);
+}
+
+static CxUiResult inWinFocus(stvlist* cvars, CxUiFocusEvent* ev)
+{
+    unused_noeval(cvars);
+    inlog.winFocus[ev->gained ? 1 : 0]++;
+    inlog.winFocusFlags = ev->flags;
+    inlog.winFocusAt    = inlog.nmouse;
+    return CXUI_Default;
+}
+
+static void inlogReset(void)
+{
+    strDestroy(&inlog.text);
+    memset(&inlog, 0, sizeof(inlog));
 }
 
 static CxUiResult inFocus(stvlist* cvars, CxUiFocusEvent* ev)
@@ -3365,7 +3399,7 @@ static CxUiResult inKey(stvlist* cvars, CxUiKeyEvent* ev)
 
 static CxUiCanvas* inputCanvas(CxUiWindow** w, const CxUiCanvasDesc* desc)
 {
-    memset(&inlog, 0, sizeof(inlog));
+    inlogReset();
     CxUiCanvas* cv = canvasInWindow(w, 100, 100, desc);
     cxuiOnMouse(cv, inMouse, stvNone);
     cxuiOnFocus(cv, inFocus, stvNone);
@@ -3515,7 +3549,7 @@ UI_TEST(inputlost)
 // widget in that window.
 UI_TEST(inputdrag)
 {
-    memset(&inlog, 0, sizeof(inlog));
+    inlogReset();
     CxUiWindow* w    = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 100, 100 }, .flags = CXUI_WINDOW_Borderless });
     CxUiWindow* other = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 100, 100 } });
     CxUiCanvas* cv   = cxuiCanvasCreate(NULL);
@@ -3601,7 +3635,7 @@ UI_TEST(inputdip)
 // and is forgotten when the canvas goes; cursors are applied whenever they are set.
 UI_TEST(inputkeys)
 {
-    memset(&inlog, 0, sizeof(inlog));
+    inlogReset();
     CxUiWindow* w  = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 100, 100 } });
     CxUiCanvas* cv = cxuiCanvasCreate(NULL);
     cxuiCanvasSetCursor(cv, CXUI_CURSOR_Hand);
@@ -3644,6 +3678,341 @@ UI_TEST(inputkeys)
     cxuiDestroy(cv);
     if (cxuiFocused(w))
         TEST_FAIL(1, _SL("a destroyed canvas kept focus"), stvNone);
+
+    cxuiDestroy(w);
+    objRelease(&cv);
+    objRelease(&w);
+    return 0;
+}
+
+// Text comes only while text input is on, and bubbles; settings made before the canvas is
+// realized reach its peer, and the caret reaches it in physical pixels.
+UI_TEST(inputtext)
+{
+    cxuiTestSetSystemScale(2.0f);
+    CxUiWindow* w;
+    CxUiCanvas* cv = canvasInWindow(&w, 100, 100, &(CxUiCanvasDesc){ .units = CXUI_Units_Dip });
+    inlogReset();
+    if (!cxuiCanvasSetTextInput(cv, CXUI_TEXTINPUT_On) || cxuiCanvasTextInput(cv) != CXUI_TEXTINPUT_On)
+        TEST_FAIL(1, _SL("text input before realizing: ${uint}"), stvar(uint32, cxuiCanvasTextInput(cv)));
+    cxuiCanvasSetTextCaret(cv, 10, 20, 1, 12);
+    cxuiOnText(w, inText, stvar(int32, CXUI_Handled));
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    CxUiTestCanvasInfo info;
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.textInput != CXUI_TEXTINPUT_On || !rectIs(info.caret, 20, 40, 2, 24))
+        TEST_FAIL(1, _SL("the peer got text input ${uint}, caret ${int},${int} ${int}x${int}"),
+                  stvar(uint32, info.textInput), RECT_ARGS(info.caret));
+
+    cxuiTestText(cv, _S"h\xC3\xA9");
+    if (inlog.texts != 1 || !strEq(inlog.text, _S"h\xC3\xA9") || inlog.textAt != CxUiWidget(w))
+        TEST_FAIL(1, _SL("text bubbling to the window: ${int} events, \"${string}\""), stvar(int32, inlog.texts),
+                  stvar(strref, inlog.text));
+    cxuiOnText(cv, inText, stvar(int32, CXUI_Handled));
+    cxuiTestText(cv, _S"\xF0\x9F\x98\x80");
+    if (inlog.texts != 2 || !strEq(inlog.text, _S"h\xC3\xA9\xF0\x9F\x98\x80") || inlog.textAt != CxUiWidget(cv))
+        TEST_FAIL(1, _SL("text handled by the canvas: ${int} events, \"${string}\""), stvar(int32, inlog.texts),
+                  stvar(strref, inlog.text));
+
+    cxuiCanvasSetTextInput(cv, 0);
+    cxuiTestText(cv, _S"x");
+    cxuiTestCanvasInfo(cv, &info);
+    if (inlog.texts != 2 || info.textInput != 0)
+        TEST_FAIL(1, _SL("with text input off: ${int} events, peer has ${uint}"), stvar(int32, inlog.texts),
+                  stvar(uint32, info.textInput));
+
+    cxuiDestroy(w);
+    objRelease(&cv);
+    objRelease(&w);
+    inlogReset();
+    return 0;
+}
+
+static int checkDeltas(int32 from, const float32 (*want)[2], int32 n)
+{
+    if (inlog.nmouse != from + n)
+        TEST_FAIL(1, _SL("${int} mouse events, expected ${int}"), stvar(int32, inlog.nmouse - from), stvar(int32, n));
+    for (int32 i = 0; i < n; i++) {
+        const MouseRec* g = &inlog.mouse[from + i];
+        if (g->dx != want[i][0] || g->dy != want[i][1])
+            TEST_FAIL(1, _SL("mouse event ${int} (action ${uint}) moved ${float},${float}; expected ${float},${float}"),
+                      stvar(int32, from + i), stvar(uint32, g->action), stvar(float64, g->dx), stvar(float64, g->dy),
+                      stvar(float64, want[i][0]), stvar(float64, want[i][1]));
+    }
+    return 0;
+}
+
+// Each move says how far the pointer went since the canvas's last mouse event, in the canvas's
+// units, also outside it while a button is held; the first move after Enter says none.
+UI_TEST(pointerdelta)
+{
+    cxuiTestSetSystemScale(2.0f);
+    CxUiWindow* w;
+    CxUiCanvas* cv = inputCanvas(&w, &(CxUiCanvasDesc){ .units = CXUI_Units_Dip });
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 10, 10);
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 16, 4);
+    cxuiTestPointer(cv, P_Press, L, 0, 0, 20, 4);
+    cxuiTestPointer(cv, P_Move, 0, L, 0, 30, 4);
+    cxuiTestPointer(cv, P_Move, 0, L, 0, 250, 4);
+    cxuiTestPointer(cv, P_Release, L, L, 0, 250, 4);
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 50, 50);
+    // Enter, Move; Move; Down; Move; Move outside; Up, Leave; Enter, Move
+    static const float32 want[][2] = { { 0, 0 }, { 0, 0 }, { 3, -3 }, { 0, 0 }, { 5, 0 },
+                                       { 110, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } };
+    if (checkDeltas(0, want, sizeof(want) / sizeof(want[0])))
+        return 1;
+
+    cxuiDestroy(w);
+    objRelease(&cv);
+    objRelease(&w);
+    return 0;
+}
+
+// A lock begins where the pointer is over the canvas, or in its middle; moves then come as
+// distances at that point, and so do presses, while the platform's own positions are ignored.
+// Raw falls back to Warp where the platform can't do it. The lock is let go while the window is
+// inactive and taken again after, as the window's focus events say; a lock asked for while
+// inactive is taken on activation. Only one canvas has it, and hiding ends it.
+UI_TEST(pointerlock)
+{
+    CxUiWindow* w;
+    CxUiCanvas* cv = inputCanvas(&w, NULL);
+    cxuiOnFocus(w, inWinFocus, stvNone);
+    CxUiTestCanvasInfo info;
+
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 30, 40);
+    if (!cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp) || cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Warp)
+        TEST_FAIL(1, _SL("Warp lock: mode ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.lockMode != CXUI_POINTERLOCK_Warp || !pointIs(info.lockAt, 30, 40))
+        TEST_FAIL(1, _SL("the peer was locked with ${uint} at ${int},${int}"), stvar(uint32, info.lockMode),
+                  stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y));
+    int32 from = inlog.nmouse;
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 60, 60);
+    cxuiTestPointerMotion(cv, 5, -2, 0);
+    cxuiTestPointer(cv, P_Press, R, 0, 0, 70, 70);
+    cxuiTestPointer(cv, P_Release, R, R, 0, 70, 70);
+    static const MouseRec locked[] = {
+        { M_Move, 0, 0, 0, 30, 40 },
+        { M_Down, R, R, 0, 30, 40 },
+        { M_Up, R, 0, 0, 30, 40 },
+    };
+    if (checkMouse(from, locked, sizeof(locked) / sizeof(locked[0])))
+        return 1;
+    if (inlog.mouse[from].dx != 5 || inlog.mouse[from].dy != -2)
+        TEST_FAIL(1, _SL("a locked move went ${float},${float}"), stvar(float64, inlog.mouse[from].dx),
+                  stvar(float64, inlog.mouse[from].dy));
+
+    cxuiTestSetPointerLockMax(CXUI_POINTERLOCK_Warp);
+    if (!cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Raw) || cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Warp)
+        TEST_FAIL(1, _SL("Raw where the platform gives only Warp: mode ${uint}"),
+                  stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+    cxuiTestSetPointerLockMax(CXUI_POINTERLOCK_Raw);
+
+    cxuiTestActivate(w, false);
+    cxuiTestCanvasInfo(cv, &info);
+    if (cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off || info.lockMode != CXUI_POINTERLOCK_Off ||
+        inlog.winFocus[0] != 1 || inlog.winFocusFlags != CXUI_FOCUS_PointerLock)
+        TEST_FAIL(1, _SL("inactive: mode ${uint}, peer ${uint}, ${int} focus events with flags ${uint}"),
+                  stvar(uint32, cxuiCanvasPointerLockMode(cv)), stvar(uint32, info.lockMode),
+                  stvar(int32, inlog.winFocus[0]), stvar(uint32, inlog.winFocusFlags));
+    from = inlog.nmouse;
+    cxuiTestPointerMotion(cv, 1, 1, 0);
+    if (inlog.nmouse != from)
+        TEST_FAIL(1, _SL("motion came while the lock was let go"), stvNone);
+    cxuiTestActivate(w, true);
+    cxuiTestCanvasInfo(cv, &info);
+    if (cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Raw || !pointIs(info.lockAt, 30, 40) ||
+        inlog.winFocus[1] != 1 || inlog.winFocusFlags != CXUI_FOCUS_PointerLock)
+        TEST_FAIL(1, _SL("active again: mode ${uint} at ${int},${int}, ${int} focus events with flags ${uint}"),
+                  stvar(uint32, cxuiCanvasPointerLockMode(cv)), stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y),
+                  stvar(int32, inlog.winFocus[1]), stvar(uint32, inlog.winFocusFlags));
+
+    // Let go, the pointer shows where the lock began, which the next move counts from.
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Off);
+    cxuiTestCanvasInfo(cv, &info);
+    from = inlog.nmouse;
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 35, 41);
+    if (info.lockMode != CXUI_POINTERLOCK_Off || !pointIs(info.lockAt, 30, 40) || inlog.nmouse != from + 1 ||
+        inlog.mouse[from].dx != 5 || inlog.mouse[from].dy != 1)
+        TEST_FAIL(1, _SL("unlocked: peer ${uint} at ${int},${int}; the next move went ${float},${float}"),
+                  stvar(uint32, info.lockMode), stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y),
+                  stvar(float64, inlog.mouse[from].dx), stvar(float64, inlog.mouse[from].dy));
+    cxuiTestActivate(w, false);
+    cxuiTestActivate(w, true);
+    if (inlog.winFocusFlags != 0 || cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off)
+        TEST_FAIL(1, _SL("with no lock, activation flagged ${uint}, mode ${uint}"), stvar(uint32, inlog.winFocusFlags),
+                  stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+
+    // Asked for while inactive, away from the canvas: taken in its middle on activation.
+    cxuiTestPointer(cv, P_Left, 0, 0, 0, 0, 0);
+    cxuiTestActivate(w, false);
+    if (!cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp) || cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off)
+        TEST_FAIL(1, _SL("asked for while inactive: mode ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+    cxuiTestActivate(w, true);
+    cxuiTestCanvasInfo(cv, &info);
+    if (cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Warp || !pointIs(info.lockAt, 50, 50) ||
+        inlog.winFocusFlags != CXUI_FOCUS_PointerLock)
+        TEST_FAIL(1, _SL("taken on activation: mode ${uint} at ${int},${int}, flags ${uint}"),
+                  stvar(uint32, cxuiCanvasPointerLockMode(cv)), stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y),
+                  stvar(uint32, inlog.winFocusFlags));
+
+    // Another canvas takes it; hiding that one's window ends it for good.
+    CxUiWindow* w2;
+    CxUiCanvas* cv2 = canvasInWindow(&w2, 100, 100, NULL);
+    cxuiWindowShow(w2, CXUI_SHOW_Normal);
+    if (!cxuiCanvasSetPointerLock(cv2, CXUI_POINTERLOCK_Warp) || cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off)
+        TEST_FAIL(1, _SL("a second canvas's lock left the first with ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+    cxuiWindowHide(w2);
+    cxuiTestActivate(w2, false);
+    cxuiTestActivate(w2, true);
+    cxuiTestCanvasInfo(cv2, &info);
+    if (cxuiCanvasPointerLockMode(cv2) != CXUI_POINTERLOCK_Off || info.lockMode != CXUI_POINTERLOCK_Off)
+        TEST_FAIL(1, _SL("a hidden window's canvas kept its lock: ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv2)));
+    if (cxuiCanvasSetPointerLock(cv2, CXUI_POINTERLOCK_Warp))
+        TEST_FAIL(1, _SL("a canvas in a hidden window took the lock"), stvNone);
+
+    // Destroying the locked canvas lets go of it.
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp);
+    cxuiDestroy(cv);
+    if (!cxuiCanvasSetPointerLock(cv2, CXUI_POINTERLOCK_Off))
+        TEST_FAIL(1, _SL("unlocking failed"), stvNone);
+
+    cxuiDestroy(w);
+    cxuiDestroy(w2);
+    objRelease(&cv);
+    objRelease(&cv2);
+    objRelease(&w);
+    objRelease(&w2);
+    return 0;
+}
+
+// A lock taken during a drag keeps the button's capture. The Up comes where the lock began, and a
+// handler that lets go of the lock there shows the pointer at that point, where the next move
+// counts from. Deactivated mid-drag, the Ups come first, marked as a lost capture, then the
+// window's focus event, flagged only if the lock is still on.
+UI_TEST(pointerlockdrag)
+{
+    CxUiWindow* w;
+    CxUiCanvas* cv = inputCanvas(&w, NULL);
+    cxuiOnFocus(w, inWinFocus, stvNone);
+    inlog.unlockOnUp = true;
+    CxUiTestCanvasInfo info;
+
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 20, 20);
+    cxuiTestPointer(cv, P_Press, L, 0, 0, 20, 20);
+    cxuiTestPointer(cv, P_Move, 0, L, 0, 26, 20);
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp);
+    cxuiTestCanvasInfo(cv, &info);
+    if (!info.captured || info.lockMode != CXUI_POINTERLOCK_Warp || !pointIs(info.lockAt, 26, 20))
+        TEST_FAIL(1, _SL("locked mid-drag: captured ${int}, mode ${uint} at ${int},${int}"), stvar(int32, info.captured),
+                  stvar(uint32, info.lockMode), stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y));
+    cxuiTestPointerMotion(cv, 40, 0, 0);
+    cxuiTestPointerMotion(cv, 300, 10, 0);
+    cxuiTestPointer(cv, P_Release, L, L, 0, 90, 90);
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.captured || info.lockMode != CXUI_POINTERLOCK_Off || !pointIs(info.lockAt, 26, 20) ||
+        cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off)
+        TEST_FAIL(1, _SL("after the Up: captured ${int}, peer ${uint} at ${int},${int}"), stvar(int32, info.captured),
+                  stvar(uint32, info.lockMode), stvar(int32, info.lockAt.x), stvar(int32, info.lockAt.y));
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 28, 21);
+    static const MouseRec drag[] = {
+        { M_Enter, 0, 0, 0, 20, 20 }, { M_Move, 0, 0, 0, 20, 20 }, { M_Down, L, L, 0, 20, 20 },
+        { M_Move, 0, L, 0, 26, 20 },  { M_Move, 0, L, 0, 26, 20 }, { M_Move, 0, L, 0, 26, 20 },
+        { M_Up, L, 0, 0, 26, 20 },    { M_Move, 0, 0, 0, 28, 21 },
+    };
+    static const float32 dragMoved[][2] = { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 6, 0 },
+                                            { 40, 0 }, { 300, 10 }, { 0, 0 }, { 2, 1 } };
+    if (checkMouse(0, drag, sizeof(drag) / sizeof(drag[0])) ||
+        checkDeltas(0, dragMoved, sizeof(dragMoved) / sizeof(dragMoved[0])))
+        return 1;
+
+    // Deactivated mid-drag, with the Up letting go of the lock; later presses aren't double clicks.
+    cxuiTestSetDoubleClick(0, 4);
+    int32 from = inlog.nmouse;
+    cxuiTestPointer(cv, P_Press, L, 0, 0, 28, 21);
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp);
+    cxuiTestActivate(w, false);
+    static const MouseRec lost[] = {
+        { M_Down, L, L, 0, 28, 21 },
+        { M_Up, L, 0, CXUI_MOUSE_CaptureLost, 28, 21 },
+    };
+    if (checkMouse(from, lost, sizeof(lost) / sizeof(lost[0])))
+        return 1;
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.captured || info.lockMode != CXUI_POINTERLOCK_Off || inlog.winFocus[0] != 1 || inlog.winFocusFlags != 0)
+        TEST_FAIL(1, _SL("unlocked on the lost Up: captured ${int}, peer ${uint}, focus flags ${uint}"),
+                  stvar(int32, info.captured), stvar(uint32, info.lockMode), stvar(uint32, inlog.winFocusFlags));
+    cxuiTestActivate(w, true);
+    if (cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Off || inlog.winFocusFlags != 0)
+        TEST_FAIL(1, _SL("a lock let go on the Up came back: mode ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+
+    // The same, keeping the lock
+    inlog.unlockOnUp = false;
+    from             = inlog.nmouse;
+    cxuiTestPointer(cv, P_Press, L, 0, 0, 28, 21);
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp);
+    cxuiTestActivate(w, false);
+    if (checkMouse(from, lost, sizeof(lost) / sizeof(lost[0])))
+        return 1;
+    if (inlog.winFocusFlags != CXUI_FOCUS_PointerLock || inlog.winFocusAt != inlog.nmouse)
+        TEST_FAIL(1, _SL("kept lock: focus flags ${uint}, after ${int} of ${int} mouse events"),
+                  stvar(uint32, inlog.winFocusFlags), stvar(int32, inlog.winFocusAt), stvar(int32, inlog.nmouse));
+    cxuiTestActivate(w, true);
+    if (cxuiCanvasPointerLockMode(cv) != CXUI_POINTERLOCK_Warp || inlog.winFocusFlags != CXUI_FOCUS_PointerLock)
+        TEST_FAIL(1, _SL("the kept lock wasn't taken again: mode ${uint}"), stvar(uint32, cxuiCanvasPointerLockMode(cv)));
+
+    cxuiDestroy(w);
+    objRelease(&cv);
+    objRelease(&w);
+    return 0;
+}
+
+// A cursor from an image, set before or after realizing, held by the canvas; a stock cursor
+// replaces it. Warping the pointer converts from the canvas's units, and the next move counts its
+// distance from there; not while the pointer is locked.
+UI_TEST(cursorimage)
+{
+    cxuiTestSetSystemScale(2.0f);
+    uint8 px[4 * 4 * 4] = { 0 };
+    CxUiImage* img  = cxuiImageCreateRGBA(4, 4, 16, px);
+    CxUiCursor* cur = cxuiCursorCreate(img, 9, 1);
+    objRelease(&img);
+    if (cur->_hot.x != 3 || cur->_hot.y != 1)
+        TEST_FAIL(1, _SL("the hot spot wasn't kept on the image: ${int},${int}"), stvar(int32, cur->_hot.x),
+                  stvar(int32, cur->_hot.y));
+
+    CxUiWindow* w;
+    CxUiCanvas* cv = canvasInWindow(&w, 100, 100, &(CxUiCanvasDesc){ .units = CXUI_Units_Dip });
+    inlogReset();
+    cxuiOnMouse(cv, inMouse, stvNone);
+    cxuiCanvasSetCursorImage(cv, cur);
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    objRelease(&cur);   // the canvas holds it
+    CxUiTestCanvasInfo info;
+    cxuiTestCanvasInfo(cv, &info);
+    if (!info.cursorImage || info.cursorImage->_hot.x != 3)
+        TEST_FAIL(1, _SL("the image cursor didn't reach the peer"), stvNone);
+    cxuiCanvasSetCursor(cv, CXUI_CURSOR_Hand);
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.cursorImage || info.cursor != CXUI_CURSOR_Hand)
+        TEST_FAIL(1, _SL("a stock cursor didn't replace the image's: cursor ${uint}"), stvar(uint32, info.cursor));
+
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 10, 10);
+    if (!cxuiCanvasWarpPointer(cv, 50, 40))
+        TEST_FAIL(1, _SL("the pointer couldn't be moved"), stvNone);
+    cxuiTestCanvasInfo(cv, &info);
+    int32 from = inlog.nmouse;
+    cxuiTestPointer(cv, P_Move, 0, 0, 0, 104, 80);
+    if (!pointIs(info.warpedTo, 100, 80) || inlog.nmouse != from + 1 || inlog.mouse[from].dx != 2 ||
+        inlog.mouse[from].dy != 0)
+        TEST_FAIL(1, _SL("warped to ${int},${int}; the next move went ${float},${float}"), stvar(int32, info.warpedTo.x),
+                  stvar(int32, info.warpedTo.y), stvar(float64, inlog.nmouse > from ? inlog.mouse[from].dx : -1),
+                  stvar(float64, inlog.nmouse > from ? inlog.mouse[from].dy : -1));
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Warp);
+    if (cxuiCanvasWarpPointer(cv, 1, 1))
+        TEST_FAIL(1, _SL("the pointer was moved while locked"), stvNone);
+    cxuiCanvasSetPointerLock(cv, CXUI_POINTERLOCK_Off);
 
     cxuiDestroy(w);
     objRelease(&cv);
@@ -5846,6 +6215,55 @@ UI_TEST(controldefault)
     return 0;
 }
 
+// A canvas that captures keys keeps Tab, Enter and Esc from the window's own handling whatever its
+// handler returns, while the window's key handler still sees them; the system key alone captures
+// nothing.
+UI_TEST(keycapture)
+{
+    PressLog log       = { 0 };
+    CxUiBox* col       = cxuiBoxCreateV();
+    CxUiCanvas* cv     = put(col, cxuiCanvasCreate(NULL));
+    CxUiCanvas* other  = put(col, cxuiCanvasCreate(NULL));
+    CxUiButton* ok     = logButton(col, _S"OK", &log, 1);
+    CxUiButton* cancel = logButton(col, _S"Cancel", &log, 2);
+    CxUiWindow* w      = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 300, 200 } });
+    cxuiContainerAppend(w, col);
+    objRelease(&col);
+    cxuiWindowSetDefaultEnter(w, ok);
+    cxuiWindowSetDefaultEsc(w, cancel);
+    cxuiOnKey(w, pressWinKey, stvar(ptr, &log));
+    if (!cxuiCanvasSetKeyCapture(cv, CXUI_KEYCAPTURE_On | CXUI_KEYCAPTURE_SystemKey) ||
+        cxuiCanvasKeyCapture(cv) != (CXUI_KEYCAPTURE_On | CXUI_KEYCAPTURE_SystemKey))
+        TEST_FAIL(1, _SL("key capture set before realizing: ${uint}"), stvar(uint32, cxuiCanvasKeyCapture(cv)));
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    settle(w);
+    CxUiTestCanvasInfo info;
+    cxuiTestCanvasInfo(cv, &info);
+    if (info.keyCapture != (CXUI_KEYCAPTURE_On | CXUI_KEYCAPTURE_SystemKey))
+        TEST_FAIL(1, _SL("the peer got key capture ${uint}"), stvar(uint32, info.keyCapture));
+
+    cxuiFocus(cv);
+    pressKey(cv, CXUI_KEY_Tab, 0);
+    pressKey(cv, CXUI_KEY_Enter, 0);
+    pressKey(cv, CXUI_KEY_Escape, 0);
+    if (cxuiFocused(w) != CxUiWidget(cv) || log.presses[0] != 0 || log.presses[1] != 0 || log.winKeys != 6)
+        TEST_FAIL(1, _SL("captured: focus moved ${int}, OK ${int}, Cancel ${int}, window saw ${int} keys"),
+                  stvar(int32, cxuiFocused(w) != CxUiWidget(cv)), stvar(int32, log.presses[0]),
+                  stvar(int32, log.presses[1]), stvar(int32, log.winKeys));
+
+    cxuiCanvasSetKeyCapture(cv, CXUI_KEYCAPTURE_SystemKey);
+    pressKey(cv, CXUI_KEY_Enter, 0);
+    pressKey(cv, CXUI_KEY_Tab, 0);
+    if (cxuiCanvasKeyCapture(cv) != 0 || log.presses[0] != 1 || cxuiFocused(w) != CxUiWidget(other))
+        TEST_FAIL(1, _SL("the system key alone: capture ${uint}, OK ${int}, focus moved ${int}"),
+                  stvar(uint32, cxuiCanvasKeyCapture(cv)), stvar(int32, log.presses[0]),
+                  stvar(int32, cxuiFocused(w) == CxUiWidget(other)));
+
+    cxuiDestroy(w);
+    objRelease(&w);
+    return 0;
+}
+
 // Alt with a mnemonic presses its button without moving focus, or focuses the first widget after
 // its label that can take focus; `&&` is no mnemonic, and a disabled button is passed over.
 UI_TEST(controlmnemonic)
@@ -8011,7 +8429,8 @@ static int test_cxui_grp_frames(void)
 static int test_cxui_grp_input(void)
 {
     TEST_CHAIN(test_cxui_inputcapture, test_cxui_inputdouble, test_cxui_inputlost, test_cxui_inputdrag,
-               test_cxui_inputdip, test_cxui_inputkeys);
+               test_cxui_inputdip, test_cxui_inputkeys, test_cxui_inputtext, test_cxui_pointerdelta,
+               test_cxui_pointerlock, test_cxui_pointerlockdrag, test_cxui_keycapture, test_cxui_cursorimage);
 }
 
 // ---- render views ----
@@ -10775,6 +11194,158 @@ UI_TEST(placementclamp)
     return 0;
 }
 
+// Show state events, with the fullscreen mode the window reports while each runs
+typedef struct ShowStateLog {
+    uint32 state[8];
+    uint32 fs[8];
+    int32 n;
+} ShowStateLog;
+
+static CxUiResult logShowState(stvlist* cvars, CxUiShowStateEvent* ev)
+{
+    ShowStateLog* log = stvlNextPtr(cvars);
+    if (log->n < 8) {
+        log->state[log->n] = ev->state;
+        log->fs[log->n]    = cxuiWindowFullscreen(ev->base.window);
+    }
+    log->n++;
+    return CXUI_Default;
+}
+
+#define FS_CHECK(w, log, wantFs, wantState, wantEvents, what)                                                      \
+    do {                                                                                                           \
+        CxUiTestWindowInfo fi_;                                                                                    \
+        cxuiTestWindowInfo((w), &fi_);                                                                             \
+        uint32 last_ = (log).n > 0 && (log).n <= 8 ? (log).state[(log).n - 1] : 99;                                \
+        if (cxuiWindowFullscreen(w) != (wantFs) || fi_.fullscreen != (wantFs) || fi_.state != (wantState) ||        \
+            (log).n != (wantEvents) || ((wantEvents) > 0 && last_ != (wantState)))                                 \
+            TEST_FAIL(1, _SL(what ": mode ${uint}, peer ${uint}, state ${uint}, ${int} events, last ${uint}"),    \
+                      stvar(uint32, cxuiWindowFullscreen(w)), stvar(uint32, fi_.fullscreen),                       \
+                      stvar(uint32, fi_.state), stvar(int32, (log).n), stvar(uint32, last_));                      \
+    } while (0)
+
+// Fullscreen raises the show state event, and leaving it gives back the state before. A monitor
+// can be chosen, but not one that isn't connected. Set on a hidden window, or by a placement, it
+// applies when the window is shown; showing it normally, or a placement that isn't fullscreen,
+// leaves it.
+UI_TEST(fullscreen)
+{
+    CxUiMonitor mons[2] = {
+        { .bounds   = { 0, 0, 1920, 1080 },
+          .workArea = { 0, 0, 1920, 1040 },
+          .scale    = 1.0f,
+          .flags    = CXUI_MON_Primary | CXUI_MON_WorkAreaKnown | CXUI_MON_PositionKnown },
+        { .bounds   = { 1920, 0, 2560, 1440 },
+          .workArea = { 1920, 0, 2560, 1440 },
+          .scale    = 1.0f,
+          .flags    = CXUI_MON_WorkAreaKnown | CXUI_MON_PositionKnown },
+    };
+    cxuiTestSetMonitors(mons, 2);
+    ShowStateLog log = { 0 };
+    CxUiWindow* w    = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 300, 200 } });
+    cxuiOnShowState(w, logShowState, stvar(ptr, &log));
+    cxuiWindowShow(w, CXUI_SHOW_Maximized);
+
+    if (!cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_System, NULL))
+        TEST_FAIL(1, _SL("System fullscreen failed"), stvNone);
+    FS_CHECK(w, log, CXUI_FULLSCREEN_System, CXUI_WINDOW_Fullscreen, 1, "System");
+    CxUiPlacement pl;
+    if (!cxuiWindowPlacement(w, &pl) || pl.state != CXUI_WINDOW_Fullscreen || log.fs[0] != CXUI_FULLSCREEN_System)
+        TEST_FAIL(1, _SL("placement state ${uint}, mode during the event ${uint}"), stvar(uint32, pl.state),
+                  stvar(uint32, log.fs[0]));
+    cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_None, NULL);
+    FS_CHECK(w, log, CXUI_FULLSCREEN_None, CXUI_WINDOW_Maximized, 2, "left");
+
+    cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_Monitor, &mons[1]);
+    CxUiTestWindowInfo info;
+    cxuiTestWindowInfo(w, &info);
+    FS_CHECK(w, log, CXUI_FULLSCREEN_Monitor, CXUI_WINDOW_Fullscreen, 3, "Monitor on the second");
+    if (!rectIs(info.fsMonitor, 1920, 0, 2560, 1440) || log.fs[2] != CXUI_FULLSCREEN_Monitor)
+        TEST_FAIL(1, _SL("covers ${int},${int} ${int}x${int}; mode during the event ${uint}"), RECT_ARGS(info.fsMonitor),
+                  stvar(uint32, log.fs[2]));
+    CxUiMonitor gone = { .bounds = { -800, 0, 800, 600 } };
+    if (cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_System, &gone))
+        TEST_FAIL(1, _SL("fullscreen on a monitor that isn't connected"), stvNone);
+    FS_CHECK(w, log, CXUI_FULLSCREEN_Monitor, CXUI_WINDOW_Fullscreen, 3, "a monitor not connected");
+
+    // Leaving gives back Maximized, which showing normally then restores.
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    cxuiTestWindowInfo(w, &info);
+    if (cxuiWindowFullscreen(w) != CXUI_FULLSCREEN_None || info.fullscreen != CXUI_FULLSCREEN_None ||
+        info.state != CXUI_WINDOW_Normal || log.n != 4 || log.state[3] != CXUI_WINDOW_Maximized)
+        TEST_FAIL(1, _SL("shown normally: mode ${uint}, peer ${uint}, state ${uint}, ${int} events"),
+                  stvar(uint32, cxuiWindowFullscreen(w)), stvar(uint32, info.fullscreen), stvar(uint32, info.state),
+                  stvar(int32, log.n));
+
+    // Set while hidden, it waits for the next show.
+    cxuiWindowHide(w);
+    if (!cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_System, &mons[1]) ||
+        cxuiWindowFullscreen(w) != CXUI_FULLSCREEN_System)
+        TEST_FAIL(1, _SL("set while hidden: mode ${uint}"), stvar(uint32, cxuiWindowFullscreen(w)));
+    cxuiTestWindowInfo(w, &info);
+    if (info.fullscreen != CXUI_FULLSCREEN_None)
+        TEST_FAIL(1, _SL("a hidden window went fullscreen"), stvNone);
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    cxuiTestWindowInfo(w, &info);
+    FS_CHECK(w, log, CXUI_FULLSCREEN_System, CXUI_WINDOW_Fullscreen, 5, "shown after setting it hidden");
+    if (!rectIs(info.fsMonitor, 1920, 0, 2560, 1440))
+        TEST_FAIL(1, _SL("set while hidden, covers ${int},${int} ${int}x${int}"), RECT_ARGS(info.fsMonitor));
+
+    // A placement brings it to another window when shown, and a placement leaves it.
+    cxuiWindowPlacement(w, &pl);
+    ShowStateLog log2 = { 0 };
+    CxUiWindow* w2    = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 300, 200 } });
+    cxuiOnShowState(w2, logShowState, stvar(ptr, &log2));
+    cxuiWindowSetPlacement(w2, &pl);
+    if (cxuiWindowFullscreen(w2) != CXUI_FULLSCREEN_None)
+        TEST_FAIL(1, _SL("a placement made an unrealized window fullscreen"), stvNone);
+    cxuiWindowShow(w2, CXUI_SHOW_Normal);
+    FS_CHECK(w2, log2, CXUI_FULLSCREEN_System, CXUI_WINDOW_Fullscreen, 1, "placed fullscreen");
+    placeSet(w2, (CxUiRect){ 0 }, CXUI_WINDOW_Normal, CXUI_PLACE_State);
+    FS_CHECK(w2, log2, CXUI_FULLSCREEN_None, CXUI_WINDOW_Normal, 2, "placed normal");
+    placeSet(w2, (CxUiRect){ 0 }, CXUI_WINDOW_Fullscreen, CXUI_PLACE_State);
+    FS_CHECK(w2, log2, CXUI_FULLSCREEN_System, CXUI_WINDOW_Fullscreen, 3, "placed fullscreen while shown");
+
+    cxuiDestroy(w);
+    cxuiDestroy(w2);
+    objRelease(&w);
+    objRelease(&w2);
+    return 0;
+}
+
+// Topmost applies to the peer whether set before or after realizing. Occlusion comes as a show
+// state event that keeps the state, and is forgotten when the window is realized again.
+UI_TEST(windowlevel)
+{
+    ShowStateLog log = { 0 };
+    CxUiWindow* w    = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 300, 200 } });
+    cxuiOnShowState(w, logShowState, stvar(ptr, &log));
+    if (!cxuiWindowSetTopmost(w, true) || !cxuiWindowTopmost(w))
+        TEST_FAIL(1, _SL("topmost before realizing"), stvNone);
+    cxuiWindowShow(w, CXUI_SHOW_Maximized);
+    bool top = false;
+    if (!cxuiTestTopmost(w, &top) || !top)
+        TEST_FAIL(1, _SL("the peer wasn't made topmost"), stvNone);
+    cxuiWindowSetTopmost(w, false);
+    cxuiTestTopmost(w, &top);
+    if (top || cxuiWindowTopmost(w))
+        TEST_FAIL(1, _SL("topmost wasn't turned off"), stvNone);
+
+    int32 before = log.n;
+    cxuiTestOccluded(w, true);
+    cxuiTestOccluded(w, true);
+    if (!cxuiWindowOccluded(w) || log.n != before + 1 || log.state[before] != CXUI_WINDOW_Maximized)
+        TEST_FAIL(1, _SL("occluded: ${int} events, state ${uint}"), stvar(int32, log.n - before),
+                  stvar(uint32, log.n > before ? log.state[before] : 99));
+    cxuiTestOccluded(w, false);
+    if (cxuiWindowOccluded(w) || log.n != before + 2)
+        TEST_FAIL(1, _SL("shown again: ${int} events"), stvar(int32, log.n - before));
+
+    cxuiDestroy(w);
+    objRelease(&w);
+    return 0;
+}
+
 UI_TEST(monitors)
 {
     sa_CxUiMonitor mons = { 0 };
@@ -10792,6 +11363,79 @@ UI_TEST(monitors)
     if (n != 2 || saSize(mons) != 2 || mons.a[1].scale != 1.5f || !rectIs(mons.a[1].bounds, 800, 0, 1024, 768))
         TEST_FAIL(1, _SL("two monitors read back as ${int} (array ${int})"), stvar(int32, n), stvar(int32, saSize(mons)));
     saDestroy(&mons);
+    return 0;
+}
+
+static bool monitorsSeen(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    (*(int32*)stvlAtPtr(cvars, 0))++;
+    return true;
+}
+
+// Monitors carry an id, a name and a refresh rate, copied with the list; a monitor kept apart is
+// copied and destroyed on its own. A change is announced, a window says which monitor it is on,
+// and fullscreen finds its monitor by id after it moves, and not once it is gone.
+UI_TEST(monitorinfo)
+{
+    CxUiMonitor two[2] = {
+        { .bounds = { 0, 0, 800, 600 }, .workArea = { 0, 0, 800, 560 }, .scale = 1.0f, .flags = CXUI_MON_Primary,
+          .refreshHz = 60.0f },
+        { .bounds = { 800, 0, 1024, 768 }, .workArea = { 800, 0, 1024, 768 }, .scale = 1.5f, .refreshHz = 144.0f,
+          .safeArea = { 0, 32, 0, 0 } },
+    };
+    strDup(&two[0].id, _S"conn-a");
+    strDup(&two[0].name, _S"Left");
+    strDup(&two[1].id, _S"conn-b");
+    strDup(&two[1].name, _S"Right");
+    cxuiTestSetMonitors(two, 2);
+
+    sa_CxUiMonitor mons = { 0 };
+    cxuiMonitors(&mons);
+    CxUiMonitor kept = { 0 };
+    if (saSize(mons) == 2)
+        cxuiMonitorCopy(&kept, &mons.a[1]);
+    bool listed = saSize(mons) == 2 && strEq(mons.a[0].id, _S"conn-a") && strEq(mons.a[1].name, _S"Right") &&
+                  mons.a[1].refreshHz == 144.0f && mons.a[1].safeArea.top == 32;
+    saDestroy(&mons);
+    if (!listed || !strEq(kept.id, _S"conn-b") || !strEq(kept.name, _S"Right"))
+        TEST_FAIL(1, _SL("monitors read back wrong; the kept copy is '${string}'"), stvar(strref, kept.id));
+
+    int32 seen = 0;
+    cchainAttach(&cxuiMonitorsChangedNotify, monitorsSeen, stvar(ptr, &seen));
+    cxuiTestMonitorsChanged();
+    cchainDetach(&cxuiMonitorsChangedNotify, monitorsSeen, 0);
+    cxuiTestMonitorsChanged();
+    if (seen != 1)
+        TEST_FAIL(1, _SL("the change was seen ${int} times"), stvar(int32, seen));
+
+    CxUiWindow* w = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 200, 100 } });
+    if (cxuiWindowMonitor(w) != -1)
+        TEST_FAIL(1, _SL("a window never shown is on monitor ${int}"), stvar(int32, cxuiWindowMonitor(w)));
+    cxuiWindowSetPosition(w, 900, 100);
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    if (cxuiWindowMonitor(w) != 1)
+        TEST_FAIL(1, _SL("a window on the second monitor is on ${int}"), stvar(int32, cxuiWindowMonitor(w)));
+
+    // The second monitor moves left of the first, keeping its id.
+    two[1].bounds = (CxUiRect){ -1024, 0, 1024, 768 };
+    cxuiTestSetMonitors(two, 2);
+    CxUiTestWindowInfo info;
+    bool moved = cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_Monitor, &kept) && cxuiTestWindowInfo(w, &info) &&
+                 rectIs(info.fsMonitor, -1024, 0, 1024, 768);
+    cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_None, NULL);
+    if (!moved)
+        TEST_FAIL(1, _SL("fullscreen didn't follow the moved monitor: ${int},${int} ${int}x${int}"),
+                  RECT_ARGS(info.fsMonitor));
+    cxuiTestSetMonitors(two, 1);
+    if (cxuiWindowSetFullscreen(w, CXUI_FULLSCREEN_Monitor, &kept))
+        TEST_FAIL(1, _SL("fullscreen on a monitor that was unplugged"), stvNone);
+
+    cxuiMonitorDestroy(&kept);
+    for (int32 i = 0; i < 2; i++)
+        cxuiMonitorDestroy(&two[i]);
+    cxuiDestroy(w);
+    objRelease(&w);
     return 0;
 }
 
@@ -10963,8 +11607,8 @@ static int test_cxui_shutdowndestroy(void)
 
 static int test_cxui_grp_desktop(void)
 {
-    TEST_CHAIN(test_cxui_placement, test_cxui_placementclamp, test_cxui_monitors, test_cxui_clipboard,
-               test_cxui_shutdownnotify, test_cxui_shutdowndestroy);
+    TEST_CHAIN(test_cxui_placement, test_cxui_placementclamp, test_cxui_fullscreen, test_cxui_windowlevel, test_cxui_monitors,
+               test_cxui_monitorinfo, test_cxui_clipboard, test_cxui_shutdownnotify, test_cxui_shutdowndestroy);
 }
 
 testfunc cxuitest_funcs[] = {
@@ -11036,6 +11680,12 @@ testfunc cxuitest_funcs[] = {
     { "inputdrag", test_cxui_inputdrag },
     { "inputdip", test_cxui_inputdip },
     { "inputkeys", test_cxui_inputkeys },
+    { "inputtext", test_cxui_inputtext },
+    { "pointerdelta", test_cxui_pointerdelta },
+    { "pointerlock", test_cxui_pointerlock },
+    { "pointerlockdrag", test_cxui_pointerlockdrag },
+    { "keycapture", test_cxui_keycapture },
+    { "cursorimage", test_cxui_cursorimage },
     { "grp_input", test_cxui_grp_input },
     { "layoutbox", test_cxui_layoutbox },
     { "layoutexpand", test_cxui_layoutexpand },
@@ -11135,7 +11785,10 @@ testfunc cxuitest_funcs[] = {
     { "grp_frames", test_cxui_grp_frames },
     { "placement", test_cxui_placement },
     { "placementclamp", test_cxui_placementclamp },
+    { "fullscreen", test_cxui_fullscreen },
+    { "windowlevel", test_cxui_windowlevel },
     { "monitors", test_cxui_monitors },
+    { "monitorinfo", test_cxui_monitorinfo },
     { "clipboard", test_cxui_clipboard },
     { "shutdownnotify", test_cxui_shutdownnotify },
     { "shutdowndestroy", test_cxui_shutdowndestroy },

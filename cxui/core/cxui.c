@@ -96,6 +96,7 @@ static void sessionTeardown(void)
     cchainCallOnce(&listeners, stvNone);
     // Windows that closing would destroy are destroyed, so their widgets' destroyNotify is called.
     _cxuiWindowsEndSession();
+    _cxuiInputEndSession();
     _cxuiNativeLeave();
 
     // Drop queued work here, so closures captured with UI objects are destroyed on the UI thread,

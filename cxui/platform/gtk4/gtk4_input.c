@@ -67,7 +67,7 @@ static CxUiKey keyvalToKey(guint kv)
     return CXUI_KEY_None;
 }
 
-static uint32 stateMods(GdkModifierType st)
+uint32 _cxuiGtk4StateMods(GdkModifierType st)
 {
     uint32 mods = 0;
     if (st & GDK_SHIFT_MASK)
@@ -122,14 +122,15 @@ bool _cxuiGtk4Key(CxUiPeer* p, GdkEvent* ev)
     if (key == CXUI_KEY_None)
         return false;
     _cxuiNativeEnter();
-    CxUiResult r = _cxuiKey(p, key, stateMods(gdk_event_get_modifier_state(ev)), keycode, type == GDK_KEY_PRESS);
+    CxUiResult r = _cxuiKey(p, key, _cxuiGtk4StateMods(gdk_event_get_modifier_state(ev)), keycode, type == GDK_KEY_PRESS);
     _cxuiNativeLeave();
     return r == CXUI_Handled;
 }
 
 // The event's position relative to w, in physical pixels; *last when the event has none (some
 // scroll events), and updated otherwise.
-static CxUiPoint eventPx(GtkWidget* w, GdkEvent* ev, CxUiPoint* last)
+_Use_decl_annotations_
+CxUiPoint _cxuiGtk4EventPx(GtkWidget* w, GdkEvent* ev, CxUiPoint* last)
 {
     double x = 0, y = 0, tx = 0, ty = 0;
     GtkNative* native = gtk_widget_get_native(w);
@@ -159,16 +160,16 @@ _Use_decl_annotations_
 bool _cxuiGtk4Pointer(CxUiPeer* p, GtkWidget* w, GdkEvent* ev, CxUiPoint* last)
 {
     GdkModifierType st = gdk_event_get_modifier_state(ev);
-    uint32 mods        = stateMods(st);
+    uint32 mods        = _cxuiGtk4StateMods(st);
     bool handled       = true;
     _cxuiNativeEnter();
     switch (gdk_event_get_event_type(ev)) {
     case GDK_MOTION_NOTIFY:
     case GDK_ENTER_NOTIFY:
-        _cxuiCanvasPointer(p, CXUI_PTR_Move, 0, stateButtons(st), mods, eventPx(w, ev, last));
+        _cxuiCanvasPointer(p, CXUI_PTR_Move, 0, stateButtons(st), mods, _cxuiGtk4EventPx(w, ev, last));
         break;
     case GDK_LEAVE_NOTIFY:
-        _cxuiCanvasPointer(p, CXUI_PTR_Left, 0, stateButtons(st), mods, eventPx(w, ev, last));
+        _cxuiCanvasPointer(p, CXUI_PTR_Left, 0, stateButtons(st), mods, _cxuiGtk4EventPx(w, ev, last));
         break;
     case GDK_BUTTON_PRESS:
     case GDK_BUTTON_RELEASE: {
@@ -180,7 +181,7 @@ bool _cxuiGtk4Pointer(CxUiPeer* p, GtkWidget* w, GdkEvent* ev, CxUiPoint* last)
         if (press)
             pressEvent = ev;
         _cxuiCanvasPointer(p, press ? CXUI_PTR_Press : CXUI_PTR_Release, button, stateButtons(st), mods,
-                           eventPx(w, ev, last));
+                           _cxuiGtk4EventPx(w, ev, last));
         pressEvent = outer;
         break;
     }
@@ -202,7 +203,7 @@ bool _cxuiGtk4Pointer(CxUiPeer* p, GtkWidget* w, GdkEvent* ev, CxUiPoint* last)
             }
             break;
         }
-        handled = _cxuiCanvasWheel(p, dx, dy, mods, eventPx(w, ev, last)) == CXUI_Handled;
+        handled = _cxuiCanvasWheel(p, dx, dy, mods, _cxuiGtk4EventPx(w, ev, last)) == CXUI_Handled;
         break;
     }
     default:

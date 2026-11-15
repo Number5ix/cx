@@ -32,8 +32,14 @@ CX_C_BEGIN
 ///   macOS. Linux doesn't let programs place windows, so cxuiWindowSetPosition() fails there and
 ///   the system picks where windows appear.
 /// - **Placement** (cxuiWindowPlacement(), cxuiWindowSetPlacement()) saves and restores a window's
-///   rectangle and whether it is maximized, for programs that reopen windows where the user left
-///   them. cxuiPlacementCaps() says which parts the platform supports.
+///   rectangle and whether it is maximized or fullscreen, for programs that reopen windows where
+///   the user left them. cxuiPlacementCaps() says which parts the platform supports.
+/// - **Fullscreen** (cxuiWindowSetFullscreen()) covers a monitor, either the platform's own way or
+///   with a window without a frame. Showing the window with CXUI_SHOW_Normal or
+///   CXUI_SHOW_Maximized, or applying a placement that isn't fullscreen, leaves fullscreen.
+/// - **Topmost** windows (cxuiWindowSetTopmost()) stay above other programs' windows. A window
+///   covered by others or on another desktop is **occluded** (cxuiWindowOccluded()), and can stop
+///   drawing; the show state event says when that changes.
 /// - **Owned windows** (cxuiWindowSetOwner()) stay in front of the window they belong to, for tool
 ///   windows beside a main window; cxuiWindowMoveNear() puts one beside its owner. A popup, message
 ///   box or dialog over a window makes its owner and the other windows that owner owns wait too.
@@ -65,6 +71,17 @@ enum CxUiShowModes {
     CXUI_SHOW_Minimized,
     /// Maximized, and made the active window
     CXUI_SHOW_Maximized,
+};
+
+/// Fullscreen modes for cxuiWindowSetFullscreen()
+enum CxUiFullscreen {
+    /// A normal window
+    CXUI_FULLSCREEN_None = 0,
+    /// The platform's own fullscreen; on macOS, a Space of its own
+    CXUI_FULLSCREEN_System,
+    /// A window without a frame covering the monitor, with nothing of the system's over it while
+    /// the program is active
+    CXUI_FULLSCREEN_Monitor,
 };
 
 /// What a window does when asked to close, if its close handler doesn't stop it

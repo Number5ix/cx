@@ -490,6 +490,51 @@ LUA_TEST(renderview)
     return 0;
 }
 
+// A canvas's text input, key capture and pointer lock from Lua: typed text and the lock's motion
+// reach the handlers, and a window goes fullscreen.
+LUA_TEST(canvasinput)
+{
+    lua_State* L = newState();
+    bool ran     = run(L,
+                          "typed, moved = '', {}\n"
+                          "cv = cxui.canvas{ ontext = function(c, e) typed = typed .. e.text return true end,\n"
+                          "                  onmouse = function(c, e) if e.action == cxui.MOUSE.move then\n"
+                          "                      moved[#moved + 1] = { e.x, e.y, e.dx, e.dy } end return true end }\n"
+                          "win = cxui.window{ cv }\n"
+                          "win:show()\n"
+                          "assert(cv:settextinput(cxui.TEXTINPUT.on))\n"
+                          "cv:settextcaret(1, 2, 1, 10)\n"
+                          "assert(cv:setkeycapture(cxui.KEYCAPTURE.on))\n"
+                          "assert(cv:setpointerlock(cxui.POINTERLOCK.raw))\n"
+                          "assert(cv:pointerlockmode() == cxui.POINTERLOCK.raw)\n"
+                          "assert(win:setfullscreen(cxui.FULLSCREEN.system))\n"
+                          "assert(win:fullscreen() == cxui.FULLSCREEN.system)\n"
+                          "local mons = cxui.monitors()\n"
+                          "assert(#mons == 1 and mons[1].primary and mons[1].id == 'null-0' and mons[1].refreshhz == 60)\n"
+                          "assert(win:setfullscreen(cxui.FULLSCREEN.monitor, mons[1]) and win:monitor() == 1)\n"
+                          "local img = cxui.image{ w = 2, h = 2, pixels = string.rep('\\0', 16) }\n"
+                          "cv:setcursorimage(cxui.cursor{ image = img, x = 1, y = 1 })\n"
+                          "cv:setcursorimage(nil)\n"
+                          "assert(win:settopmost(true) and win:topmost() and not win:occluded())\n");
+    CxUiCanvas* cv = ran ? objDynCast(CxUiCanvas, global(L, "cv")) : NULL;
+    if (cv) {
+        cxuiTestText(cv, _S"ok");
+        cxuiTestPointerMotion(cv, 3, -4, 0);
+    }
+    bool after = cv && run(L, "assert(typed == 'ok', typed)\n"
+                              "local w, h = cv:size()\n"
+                              "assert(#moved == 1 and moved[1][1] == w // 2 and moved[1][2] == h // 2 and moved[1][3] == 3 and\n"
+                              "       moved[1][4] == -4)\n"
+                              "assert(cv:setpointerlock(cxui.POINTERLOCK.off))\n"
+                              "assert(cv:warppointer(3, 4))\n"
+                              "win:destroy()\n");
+    closeState(L);
+    if (!ran || !after)
+        TEST_FAIL(1, _SL("ran ${int}, after input ${int}: ${string}"), stvar(int32, ran), stvar(int32, after),
+                  stvar(string, lastError));
+    return 0;
+}
+
 // Native tabs from a table: pages by position with titles in order, a background role, titles read
 // and changed, pages added; a pick by the user reaches the handler, one from code doesn't.
 LUA_TEST(tabs)
@@ -580,7 +625,8 @@ static int test_cxuilua_grp_module(void)
 {
     TEST_CHAIN(test_cxuilua_build, test_cxuilua_events, test_cxuilua_destroyed, test_cxuilua_lists, test_cxuilua_modal,
                test_cxuilua_keys, test_cxuilua_drawing, test_cxuilua_grids, test_cxuilua_backgrounds, test_cxuilua_menus,
-               test_cxuilua_tabs, test_cxuilua_listmulti, test_cxuilua_renderview, test_cxuilua_owned);
+               test_cxuilua_tabs, test_cxuilua_listmulti, test_cxuilua_renderview, test_cxuilua_owned,
+               test_cxuilua_canvasinput);
 }
 
 testfunc cxuiluatest_funcs[] = {
@@ -598,6 +644,7 @@ testfunc cxuiluatest_funcs[] = {
     { "listmulti", test_cxuilua_listmulti },
     { "renderview", test_cxuilua_renderview },
     { "owned", test_cxuilua_owned },
+    { "canvasinput", test_cxuilua_canvasinput },
     { "grp_module", test_cxuilua_grp_module },
     { 0, 0 }
 };

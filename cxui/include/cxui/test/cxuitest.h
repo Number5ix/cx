@@ -28,6 +28,9 @@ typedef struct CxUiTestWindowInfo {
     CxUiSize created;   // size the window was created at
     CxUiPoint pos;
     uint32 mode;    // the last CxUiShowModes
+    uint32 state;        // CxUiWindowStates
+    uint32 fullscreen;   // CxUiFullscreen
+    CxUiRect fsMonitor;  // the bounds of the monitor fullscreen was asked for on; 0 for the current one
     bool visible;
     bool dark;
     bool enabled;
@@ -154,6 +157,14 @@ typedef struct CxUiTestCanvasInfo {
     bool captured;                // has the mouse captured
     bool focused;                 // has keyboard focus
     uint32 cursor;                // CxUiCursors
+    CxUiCursor* cursorImage;      // the image cursor shown, or NULL
+    CxUiPoint warpedTo;           // where the pointer was last moved to, in physical pixels
+    int32 warps;                  // times it was moved
+    flags_t textInput;            // CxUiTextInputFlags
+    CxUiRect caret;               // the text caret, in physical pixels
+    flags_t keyCapture;           // CxUiKeyCaptureFlags
+    uint32 lockMode;              // CxUiPointerLocks
+    CxUiPoint lockAt;             // where the pointer lock began, or where the pointer was let go
     int32 paints;                 // paint passes so far
     CxUiRect lastDirty;           // the last pass's area, in physical pixels
     const CxUiTestDrawOp* ops;    // the last pass's operations, borrowed until the next pass
@@ -343,9 +354,11 @@ bool cxuiTestClipboardForeign(_In_opt_ strref text);
 // Reads the clipboard's text with line ends unchanged. UI thread only.
 bool cxuiTestClipboardRaw(_Inout_ string* out);
 
-// Replaces the null backend's monitors (at most 4) until it next starts, when it goes back to one
-// 1920x1080 monitor with a 40-pixel taskbar at the bottom. UI thread only.
+// Replaces the null backend's monitors (at most 4), copying them, until it next starts, when it goes
+// back to one 1920x1080 monitor at 60 Hz with a 40-pixel taskbar at the bottom. UI thread only.
 void cxuiTestSetMonitors(_In_reads_(count) const CxUiMonitor* mons, int32 count);
+// The platform says the monitors changed. Any backend; UI thread only.
+void cxuiTestMonitorsChanged(void);
 
 // Resizes a null-backend window as the user would, in device-independent pixels. UI thread only.
 void cxuiTestResize(_In_ CxUiWindow* w, int32 width, int32 height);
@@ -374,6 +387,22 @@ CxUiResult cxuiTestWheel(_In_ CxUiCanvas* cv, float64 dx, float64 dy, uint32 mod
 // Ends the wheel gesture under way, as a pause in turning the wheel does. Any backend; UI thread
 // only.
 void cxuiTestWheelPause(void);
+// Text typed into a canvas, as a platform reports it after the key. Any backend; UI thread only.
+void cxuiTestText(_In_ CxUiCanvas* cv, _In_ strref text);
+// Mouse motion while the pointer is locked to the canvas, in physical pixels. Any backend; UI
+// thread only.
+void cxuiTestPointerMotion(_In_ CxUiCanvas* cv, float32 dx, float32 dy, uint32 mods);
+// The platform says the window became active or inactive. Any backend; UI thread only.
+void cxuiTestActivate(_In_ CxUiWindow* w, bool active);
+// The platform says nothing of the window can be seen, or something can again. Any backend; UI
+// thread only.
+void cxuiTestOccluded(_In_ CxUiWindow* w, bool occluded);
+// Reads back from the platform whether the window is kept above others. False if it isn't
+// realized or the platform can't tell. Any backend; UI thread only.
+bool cxuiTestTopmost(_In_ CxUiWindow* w, _Out_ bool* topmost);
+// The best CxUiPointerLocks mode the null backend gives, as a remote session limits it; reset to
+// Raw when cxui starts. UI thread only.
+void cxuiTestSetPointerLockMax(uint32 mode);
 
 // How the UI thread's loop has run this session
 typedef struct CxUiTestLoopStats {

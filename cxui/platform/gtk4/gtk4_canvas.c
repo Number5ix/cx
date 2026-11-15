@@ -2,6 +2,18 @@
 
 #include <math.h>
 
+// Last: Xlib's macros would clash with names above.
+#if defined(CXUI_GTK4_WLLOCK)
+#include <gdk/wayland/gdkwayland.h>
+#include "pointer-constraints-unstable-v1-client-protocol.h"
+#include "relative-pointer-unstable-v1-client-protocol.h"
+#endif
+#if defined(CXUI_GTK4_X11)
+#include <gdk/x11/gdkx.h>
+// GDK's X11 interface is deprecated as a whole; the pointer can only be warped through Xlib.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 // ---- the window's root widget ----
 
 // Holds a window's content, or a panel's. A window's root reports its size, which is the
@@ -55,7 +67,26 @@ struct Gtk4Canvas {
     CxUiRect bounds;         // physical pixels, within the root
     guint tick;              // a paint is waiting for the next frame
     CxUiPoint lastPointer;   // physical pixels, for events that come without a position
+    uint32 cursor;           // CxUiCursors
+    GdkCursor* imageCursor;  // made from an image, while one is set
+    GtkIMContext* im;        // while text input is on
+    flags_t keyCapture;
+    CxUiRect caret;          // physical pixels, while hasCaret
+    bool hasCaret;
+    // CxUiPointerLocks in effect, and where the lock began
+    uint32 lockMode;
+    CxUiPoint lockAt;
+#if defined(CXUI_GTK4_X11)
+    bool x11Grab;            // an X pointer grab keeps the pointer in the window
+#endif
+#if defined(CXUI_GTK4_WLLOCK)
+    struct zwp_locked_pointer_v1* wlLocked;
+    struct zwp_relative_pointer_v1* wlRelative;
+#endif
 };
+
+static void lockedMotion(Gtk4Canvas* c, GtkWidget* w, GdkEvent* ev);
+static void canvasCursorApply(Gtk4Canvas* c);
 
 _Use_decl_annotations_
 float32 _cxuiGtk4WidgetScale(GtkWidget* w)
@@ -483,6 +514,73 @@ static gboolean canvasTick(GtkWidget* w, GdkFrameClock* clock, gpointer ud)
     return G_SOURCE_REMOVE;
 }
 
+// ---- text ----
+
+// What the input method commits, without control characters, which are keys
+static void imCommit(GtkIMContext* im, const char* str, gpointer ud)
+{
+    unused_noeval(im);
+    Gtk4Canvas* c = ud;
+    // Control characters are single bytes in UTF-8.
+    char* kept = xaAlloc(strlen(str) + 1);
+    size_t n   = 0;
+    for (const char* at = str; *at; at++) {
+        if ((unsigned char)*at >= 0x20 && *at != 0x7F)
+            kept[n++] = *at;
+    }
+    kept[n] = 0;
+    if (n > 0) {
+        _cxuiNativeEnter();
+        _cxuiCanvasText(&c->cp.base, (strref)kept);
+        _cxuiNativeLeave();
+    }
+    xaFree(kept);
+}
+
+static bool imComposing(GtkIMContext* im)
+{
+    char* pre = NULL;
+    gtk_im_context_get_preedit_string(im, &pre, NULL, NULL);
+    bool composing = pre && *pre;
+    g_free(pre);
+    return composing;
+}
+
+static void imCaretApply(Gtk4Canvas* c)
+{
+    if (!c->im || !c->hasCaret)
+        return;
+    float32 s       = _cxuiGtk4WidgetScale(GTK_WIDGET(c->widget));
+    GdkRectangle r  = { (int)(c->caret.x / s), (int)(c->caret.y / s), (int)ceilf(max(c->caret.w, 1) / s),
+                        (int)ceilf(c->caret.h / s) };
+    gtk_im_context_set_cursor_location(c->im, &r);
+}
+
+static void imDrop(Gtk4Canvas* c)
+{
+    if (!c->im)
+        return;
+    g_signal_handlers_disconnect_by_data(c->im, c);
+    gtk_im_context_focus_out(c->im);
+    gtk_im_context_set_client_widget(c->im, NULL);
+    g_clear_object(&c->im);
+}
+
+// The key goes to cxui, then to the input method, which raises text through its commit signal;
+// while it is composing, the keys are its own. A canvas that captures keys takes all of them.
+// Each core call is inside _cxuiNativeEnter/Leave, after which c may be gone.
+static gboolean canvasKey(Gtk4Canvas* c, GdkEvent* ev)
+{
+    bool takeAll     = (c->keyCapture & CXUI_KEYCAPTURE_On) != 0;
+    GtkIMContext* im = c->im ? g_object_ref(c->im) : NULL;
+    bool handled     = im && imComposing(im) ? false : _cxuiGtk4Key(&c->cp.base, ev);
+    if (im) {
+        handled = gtk_im_context_filter_keypress(im, ev) || handled;
+        g_object_unref(im);
+    }
+    return handled || takeAll;
+}
+
 // Input and focus. Each core call is inside _cxuiNativeEnter/Leave; c isn't touched after.
 static gboolean canvasEvent(GtkEventControllerLegacy* ctl, GdkEvent* ev, gpointer ud)
 {
@@ -490,7 +588,12 @@ static gboolean canvasEvent(GtkEventControllerLegacy* ctl, GdkEvent* ev, gpointe
     GtkWidget* w  = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(ctl));
     GdkEventType type = gdk_event_get_event_type(ev);
     if (type == GDK_KEY_PRESS || type == GDK_KEY_RELEASE)
-        return _cxuiGtk4Key(&c->cp.base, ev);
+        return canvasKey(c, ev);
+    if (c->lockMode && (type == GDK_MOTION_NOTIFY || type == GDK_ENTER_NOTIFY || type == GDK_LEAVE_NOTIFY)) {
+        if (type == GDK_MOTION_NOTIFY)
+            lockedMotion(c, w, ev);
+        return TRUE;
+    }
     return _cxuiGtk4Pointer(&c->cp.base, w, ev, &c->lastPointer);
 }
 
@@ -530,6 +633,8 @@ void _cxuiGtk4ControllersRelease(GtkWidget* w, void* data)
 static void canvasFocusIn(GtkEventControllerFocus* ctl, gpointer ud)
 {
     unused_noeval(ctl);
+    if (((Gtk4Canvas*)ud)->im)
+        gtk_im_context_focus_in(((Gtk4Canvas*)ud)->im);
     _cxuiNativeEnter();
     _cxuiFocusChanged(&((Gtk4Canvas*)ud)->cp.base, true);
     _cxuiNativeLeave();
@@ -538,6 +643,8 @@ static void canvasFocusIn(GtkEventControllerFocus* ctl, gpointer ud)
 static void canvasFocusOut(GtkEventControllerFocus* ctl, gpointer ud)
 {
     unused_noeval(ctl);
+    if (((Gtk4Canvas*)ud)->im)
+        gtk_im_context_focus_out(((Gtk4Canvas*)ud)->im);
     _cxuiNativeEnter();
     _cxuiFocusChanged(&((Gtk4Canvas*)ud)->cp.base, false);
     _cxuiNativeLeave();
@@ -631,6 +738,18 @@ void _cxuiGtk4PeerFocus(CxUiPeer* p)
 
 void _cxuiGtk4CanvasSetCursor(CxUiPeer* p, uint32 cursor)
 {
+    ((Gtk4Canvas*)p)->cursor = cursor;
+    canvasCursorApply((Gtk4Canvas*)p);
+}
+
+// Hidden while the pointer is locked
+static void canvasCursorApply(Gtk4Canvas* c)
+{
+    if (c->imageCursor && !c->lockMode) {
+        gtk_widget_set_cursor(GTK_WIDGET(c->widget), c->imageCursor);
+        return;
+    }
+    uint32 cursor = c->lockMode ? CXUI_CURSOR_None : c->cursor;
     static const char* const names[CXUI_CURSOR_Count] = {
         [CXUI_CURSOR_Arrow] = "default",      [CXUI_CURSOR_IBeam] = "text",
         [CXUI_CURSOR_Hand] = "pointer",       [CXUI_CURSOR_Wait] = "wait",
@@ -639,7 +758,348 @@ void _cxuiGtk4CanvasSetCursor(CxUiPeer* p, uint32 cursor)
         [CXUI_CURSOR_SizeNESW] = "nesw-resize", [CXUI_CURSOR_Move] = "move",
         [CXUI_CURSOR_NotAllowed] = "not-allowed", [CXUI_CURSOR_None] = "none",
     };
-    gtk_widget_set_cursor_from_name(GTK_WIDGET(((Gtk4Canvas*)p)->widget), cursor < CXUI_CURSOR_Count ? names[cursor] : NULL);
+    gtk_widget_set_cursor_from_name(GTK_WIDGET(c->widget), cursor < CXUI_CURSOR_Count ? names[cursor] : NULL);
+}
+
+// The image's pixels, which GDK shows at a size in the surface's units; dividing by the scale
+// shows the image at its own size in physical pixels.
+typedef struct Gtk4CursorImage {
+    GdkTexture* texture;
+    CxUiPoint hot;
+} Gtk4CursorImage;
+
+static void cursorImageFree(gpointer data)
+{
+    Gtk4CursorImage* ci = data;
+    g_object_unref(ci->texture);
+    xaFree(ci);
+}
+
+#if GTK_CHECK_VERSION(4, 16, 0)
+static GdkTexture* cursorTexture(GdkCursor* cursor, int size, double scale, int* w, int* h, int* hotX, int* hotY,
+                                 gpointer data)
+{
+    unused_noeval(cursor);
+    unused_noeval(size);
+    Gtk4CursorImage* ci = data;
+    *w    = (int)ceil(gdk_texture_get_width(ci->texture) / scale);
+    *h    = (int)ceil(gdk_texture_get_height(ci->texture) / scale);
+    *hotX = (int)(ci->hot.x / scale);
+    *hotY = (int)(ci->hot.y / scale);
+    return g_object_ref(ci->texture);
+}
+#endif
+
+static GdkCursor* imageCursorFor(CxUiCursor* cur)
+{
+    CxUiSize sz = cxuiImageSize(cur->_image);
+    int32 stride;
+    const uint8* rows   = _cxuiImageRows(cur->_image, &stride);
+    GBytes* bytes       = g_bytes_new(rows, (gsize)stride * (sz.h - 1) + (gsize)sz.w * 4);
+    Gtk4CursorImage* ci = xaAllocStruct(Gtk4CursorImage, XA_Zero);
+    ci->texture = gdk_memory_texture_new(sz.w, sz.h, GDK_MEMORY_B8G8R8A8_PREMULTIPLIED, bytes, stride);
+    ci->hot     = cur->_hot;
+    g_bytes_unref(bytes);
+#if GTK_CHECK_VERSION(4, 16, 0)
+    return gdk_cursor_new_from_callback(cursorTexture, ci, cursorImageFree, NULL);
+#else
+    GdkCursor* made = gdk_cursor_new_from_texture(ci->texture, ci->hot.x, ci->hot.y, NULL);
+    cursorImageFree(ci);
+    return made;
+#endif
+}
+
+void _cxuiGtk4CanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor)
+{
+    Gtk4Canvas* c = (Gtk4Canvas*)p;
+    g_clear_object(&c->imageCursor);
+    if (cursor)
+        c->imageCursor = imageCursorFor(cursor);
+    canvasCursorApply(c);
+}
+
+bool _cxuiGtk4CanvasSetTextInput(CxUiPeer* p, flags_t flags)
+{
+    Gtk4Canvas* c = (Gtk4Canvas*)p;
+    GtkWidget* w  = GTK_WIDGET(c->widget);
+    if (!flags) {
+        imDrop(c);
+        return true;
+    }
+    if (c->im)
+        return true;
+    c->im = gtk_im_context_simple_new();
+    gtk_im_context_set_client_widget(c->im, w);
+    g_signal_connect(c->im, "commit", G_CALLBACK(imCommit), c);
+    if (gtk_widget_has_focus(w))
+        gtk_im_context_focus_in(c->im);
+    imCaretApply(c);
+    return true;
+}
+
+void _cxuiGtk4CanvasSetTextCaret(CxUiPeer* p, CxUiRect px)
+{
+    Gtk4Canvas* c = (Gtk4Canvas*)p;
+    c->caret      = px;
+    c->hasCaret   = true;
+    imCaretApply(c);
+}
+
+// The Windows key can't be taken from the desktop without taking Alt+Tab too.
+bool _cxuiGtk4CanvasSetKeyCapture(CxUiPeer* p, flags_t flags)
+{
+    ((Gtk4Canvas*)p)->keyCapture = flags;
+    return !(flags & CXUI_KEYCAPTURE_SystemKey);
+}
+
+// ---- pointer lock ----
+
+// Where a point of the canvas is on its toplevel's surface, in the surface's own units
+static bool surfacePoint(Gtk4Canvas* c, CxUiPoint px, double* x, double* y)
+{
+    GtkWidget* w  = GTK_WIDGET(c->widget);
+    GtkNative* nt = gtk_widget_get_native(w);
+    float32 s     = _cxuiGtk4WidgetScale(w);
+    graphene_point_t in = GRAPHENE_POINT_INIT((px.x + 0.5f) / s, (px.y + 0.5f) / s), out;
+    if (!nt || !gtk_widget_compute_point(w, GTK_WIDGET(nt), &in, &out))
+        return false;
+    double tx = 0, ty = 0;
+    gtk_native_get_surface_transform(nt, &tx, &ty);
+    *x = out.x + tx;
+    *y = out.y + ty;
+    return true;
+}
+
+#if defined(CXUI_GTK4_X11)
+// X11 has no lock: the pointer is kept in the window by a grab and warped back as it moves.
+static Window x11Window(Gtk4Canvas* c, Display** dpy)
+{
+    GtkNative* nt = gtk_widget_get_native(GTK_WIDGET(c->widget));
+    *dpy          = gdk_x11_display_get_xdisplay(gtk_widget_get_display(GTK_WIDGET(c->widget)));
+    return nt ? gdk_x11_surface_get_xid(gtk_native_get_surface(nt)) : None;
+}
+
+static void x11WarpTo(Gtk4Canvas* c, CxUiPoint px)
+{
+    Display* dpy;
+    Window xw = x11Window(c, &dpy);
+    double x, y;
+    if (!xw || !surfacePoint(c, px, &x, &y))
+        return;
+    float32 s = _cxuiGtk4WidgetScale(GTK_WIDGET(c->widget));
+    XWarpPointer(dpy, None, xw, 0, 0, 0, 0, (int)floor(x * s), (int)floor(y * s));
+    XFlush(dpy);
+}
+
+static bool x11Lock(Gtk4Canvas* c, CxUiPoint px)
+{
+    Display* dpy;
+    Window xw = x11Window(c, &dpy);
+    if (!xw)
+        return false;
+    c->x11Grab = XGrabPointer(dpy, xw, True, ButtonPressMask | ButtonReleaseMask | PointerMotionMask, GrabModeAsync,
+                              GrabModeAsync, xw, None, CurrentTime) == GrabSuccess;
+    x11WarpTo(c, px);
+    return true;
+}
+
+static void x11Unlock(Gtk4Canvas* c, CxUiPoint px)
+{
+    Display* dpy;
+    Window xw = x11Window(c, &dpy);
+    if (c->x11Grab && xw)
+        XUngrabPointer(dpy, CurrentTime);
+    c->x11Grab = false;
+    x11WarpTo(c, px);
+}
+#endif
+
+#if defined(CXUI_GTK4_WLLOCK)
+// Wayland locks the pointer itself, and reports the mouse's motion apart from the pointer's.
+static struct zwp_pointer_constraints_v1* wlConstraints;
+static struct zwp_relative_pointer_manager_v1* wlRelativeMgr;
+static struct wl_display* wlBoundOn;
+
+static void wlGlobal(void* data, struct wl_registry* reg, uint32_t name, const char* iface, uint32_t version)
+{
+    unused_noeval(data);
+    unused_noeval(version);
+    if (strcmp(iface, zwp_pointer_constraints_v1_interface.name) == 0)
+        wlConstraints = wl_registry_bind(reg, name, &zwp_pointer_constraints_v1_interface, 1);
+    else if (strcmp(iface, zwp_relative_pointer_manager_v1_interface.name) == 0)
+        wlRelativeMgr = wl_registry_bind(reg, name, &zwp_relative_pointer_manager_v1_interface, 1);
+}
+
+static void wlGlobalRemove(void* data, struct wl_registry* reg, uint32_t name)
+{
+    unused_noeval(data);
+    unused_noeval(reg);
+    unused_noeval(name);
+}
+
+static const struct wl_registry_listener wlRegistryListener = { wlGlobal, wlGlobalRemove };
+
+// Binds both once per connection. The registry runs on a queue of its own, so waiting for it
+// dispatches nothing of GDK's; what is bound then moves to GDK's queue, which delivers its events.
+static bool wlBind(struct wl_display* dpy)
+{
+    if (wlBoundOn == dpy)
+        return wlConstraints && wlRelativeMgr;
+    wlBoundOn     = dpy;
+    wlConstraints = NULL;
+    wlRelativeMgr = NULL;
+    struct wl_event_queue* q = wl_display_create_queue(dpy);
+    struct wl_display* wrap  = wl_proxy_create_wrapper(dpy);
+    wl_proxy_set_queue((struct wl_proxy*)wrap, q);
+    struct wl_registry* reg = wl_display_get_registry(wrap);
+    wl_registry_add_listener(reg, &wlRegistryListener, NULL);
+    wl_display_roundtrip_queue(dpy, q);
+    wl_registry_destroy(reg);
+    wl_proxy_wrapper_destroy(wrap);
+    if (wlConstraints)
+        wl_proxy_set_queue((struct wl_proxy*)wlConstraints, NULL);
+    if (wlRelativeMgr)
+        wl_proxy_set_queue((struct wl_proxy*)wlRelativeMgr, NULL);
+    wl_event_queue_destroy(q);
+    return wlConstraints && wlRelativeMgr;
+}
+
+static void wlRelativeMotion(void* data, struct zwp_relative_pointer_v1* rp, uint32_t hi, uint32_t lo, wl_fixed_t dx,
+                             wl_fixed_t dy, wl_fixed_t dxRaw, wl_fixed_t dyRaw)
+{
+    unused_noeval(rp);
+    unused_noeval(hi);
+    unused_noeval(lo);
+    Gtk4Canvas* c = data;
+    if (!c->lockMode)
+        return;
+    GtkWidget* w  = GTK_WIDGET(c->widget);
+    float32 s     = _cxuiGtk4WidgetScale(w);
+    bool raw      = c->lockMode == CXUI_POINTERLOCK_Raw;
+    GdkSeat* seat = gdk_display_get_default_seat(gtk_widget_get_display(w));
+    GdkDevice* kb = seat ? gdk_seat_get_keyboard(seat) : NULL;
+    uint32 mods   = kb ? _cxuiGtk4StateMods(gdk_device_get_modifier_state(kb)) : 0;
+    _cxuiNativeEnter();
+    _cxuiCanvasPointerMotion(&c->cp.base, (float32)wl_fixed_to_double(raw ? dxRaw : dx) * s,
+                             (float32)wl_fixed_to_double(raw ? dyRaw : dy) * s, mods);
+    _cxuiNativeLeave();
+}
+
+static const struct zwp_relative_pointer_v1_listener wlRelativeListener = { wlRelativeMotion };
+
+static bool wlLock(Gtk4Canvas* c, CxUiPoint px)
+{
+    GtkWidget* w   = GTK_WIDGET(c->widget);
+    GdkDisplay* d  = gtk_widget_get_display(w);
+    GtkNative* nt  = gtk_widget_get_native(w);
+    GdkSeat* seat  = gdk_display_get_default_seat(d);
+    GdkDevice* ptr = seat ? gdk_seat_get_pointer(seat) : NULL;
+    if (!nt || !ptr || !wlBind(gdk_wayland_display_get_wl_display(d)))
+        return false;
+    struct wl_pointer* wp = gdk_wayland_device_get_wl_pointer(ptr);
+    struct wl_surface* ws = gdk_wayland_surface_get_wl_surface(gtk_native_get_surface(nt));
+    double x, y;
+    if (!wp || !ws || !surfacePoint(c, px, &x, &y))
+        return false;
+    c->wlLocked = zwp_pointer_constraints_v1_lock_pointer(wlConstraints, ws, wp, NULL,
+                                                          ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT);
+    c->wlRelative = zwp_relative_pointer_manager_v1_get_relative_pointer(wlRelativeMgr, wp);
+    zwp_relative_pointer_v1_add_listener(c->wlRelative, &wlRelativeListener, c);
+    // Where the pointer shows when the lock goes; it takes effect with the surface's next commit.
+    zwp_locked_pointer_v1_set_cursor_position_hint(c->wlLocked, wl_fixed_from_double(x), wl_fixed_from_double(y));
+    gtk_widget_queue_draw(GTK_WIDGET(nt));
+    return true;
+}
+
+static void wlUnlock(Gtk4Canvas* c)
+{
+    if (c->wlRelative)
+        zwp_relative_pointer_v1_destroy(c->wlRelative);
+    if (c->wlLocked)
+        zwp_locked_pointer_v1_destroy(c->wlLocked);
+    c->wlRelative = NULL;
+    c->wlLocked   = NULL;
+}
+#endif
+
+// X11 reports the pointer's moves, which go to cxui as distances from the lock point before the
+// pointer goes back there.
+static void lockedMotion(Gtk4Canvas* c, GtkWidget* w, GdkEvent* ev)
+{
+#if defined(CXUI_GTK4_X11)
+    if (!GDK_IS_X11_DISPLAY(gtk_widget_get_display(w)))
+        return;
+    CxUiPoint at = _cxuiGtk4EventPx(w, ev, &c->lastPointer);
+    float32 dx = (float32)(at.x - c->lockAt.x), dy = (float32)(at.y - c->lockAt.y);
+    if (dx == 0 && dy == 0)
+        return;
+    x11WarpTo(c, c->lockAt);
+    _cxuiNativeEnter();
+    _cxuiCanvasPointerMotion(&c->cp.base, dx, dy, _cxuiGtk4StateMods(gdk_event_get_modifier_state(ev)));
+    _cxuiNativeLeave();
+#else
+    unused_noeval(c);
+    unused_noeval(w);
+    unused_noeval(ev);
+#endif
+}
+
+static void lockRelease(Gtk4Canvas* c, CxUiPoint px)
+{
+#if defined(CXUI_GTK4_X11)
+    if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(GTK_WIDGET(c->widget))))
+        x11Unlock(c, px);
+#else
+    (void)px;
+#endif
+#if defined(CXUI_GTK4_WLLOCK)
+    wlUnlock(c);
+#endif
+}
+
+// X11 only: Wayland moves the pointer only out of a lock.
+bool _cxuiGtk4CanvasWarpPointer(CxUiPeer* p, CxUiPoint px)
+{
+#if defined(CXUI_GTK4_X11)
+    Gtk4Canvas* c = (Gtk4Canvas*)p;
+    if (!GDK_IS_X11_DISPLAY(gtk_widget_get_display(GTK_WIDGET(c->widget))))
+        return false;
+    x11WarpTo(c, px);
+    return true;
+#else
+    unused_noeval(p);
+    (void)px;
+    return false;
+#endif
+}
+
+uint32 _cxuiGtk4CanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px)
+{
+    Gtk4Canvas* c = (Gtk4Canvas*)p;
+    GdkDisplay* d = gtk_widget_get_display(GTK_WIDGET(c->widget));
+    if (mode == CXUI_POINTERLOCK_Off) {
+        if (c->lockMode) {
+            lockRelease(c, px);
+            c->lockMode = CXUI_POINTERLOCK_Off;
+            canvasCursorApply(c);
+        }
+        return CXUI_POINTERLOCK_Off;
+    }
+    uint32 got = CXUI_POINTERLOCK_Off;
+#if defined(CXUI_GTK4_WLLOCK)
+    if (GDK_IS_WAYLAND_DISPLAY(d))
+        got = c->lockMode || wlLock(c, px) ? mode : CXUI_POINTERLOCK_Off;
+#endif
+#if defined(CXUI_GTK4_X11)
+    // X11's relative motion would need XInput2; Raw works as Warp there.
+    if (GDK_IS_X11_DISPLAY(d))
+        got = c->lockMode || x11Lock(c, px) ? CXUI_POINTERLOCK_Warp : CXUI_POINTERLOCK_Off;
+#endif
+    unused_noeval(d);
+    c->lockMode = got;
+    c->lockAt   = px;
+    canvasCursorApply(c);
+    return got;
 }
 
 bool _cxuiGtk4TestExpose(CxUiPeer* p)
@@ -651,6 +1111,10 @@ bool _cxuiGtk4TestExpose(CxUiPeer* p)
 void _cxuiGtk4CanvasDestroy(CxUiPeer* p)
 {
     Gtk4Canvas* c = (Gtk4Canvas*)p;
+    if (c->lockMode)
+        lockRelease(c, c->lockAt);
+    imDrop(c);
+    g_clear_object(&c->imageCursor);
     // Controllers go with the widget, which can outlive c while GTK holds it.
     g_signal_handlers_disconnect_by_data(c->widget, c);
     _cxuiGtk4ControllersRelease(GTK_WIDGET(c->widget), c);

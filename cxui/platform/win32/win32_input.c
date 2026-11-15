@@ -62,9 +62,9 @@ static CxUiKey vkToKey(WPARAM vk, LPARAM lp)
     return CXUI_KEY_None;
 }
 
-static uint32 keyMods(void)
+uint32 _cxuiWin32KeyMods(void)
 {
-    uint32 mods = 0;
+    uint32 mods = _cxuiWin32SysKeyHeld() ? CXUI_MOD_Meta : 0;
     if (GetKeyState(VK_SHIFT) & 0x8000)
         mods |= CXUI_MOD_Shift;
     if (GetKeyState(VK_CONTROL) & 0x8000)
@@ -85,7 +85,7 @@ bool _cxuiWin32Key(CxUiPeer* p, UINT msg, WPARAM wp, LPARAM lp)
     bool down       = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
     uint32 scancode = ((uint32)(lp >> 16) & 0xFF) | ((lp & 0x01000000) ? 0x100 : 0);
     _cxuiNativeEnter();
-    CxUiResult r = _cxuiKey(p, key, keyMods(), scancode, down);
+    CxUiResult r = _cxuiKey(p, key, _cxuiWin32KeyMods(), scancode, down);
     _cxuiNativeLeave();
     return r == CXUI_Handled;
 }
@@ -164,7 +164,7 @@ static uint32 mouseButtons(WPARAM wp)
 
 static uint32 mouseMods(WPARAM wp)
 {
-    uint32 mods = keyMods() & ~(CXUI_MOD_Shift | CXUI_MOD_Ctrl);
+    uint32 mods = _cxuiWin32KeyMods() & ~(CXUI_MOD_Shift | CXUI_MOD_Ctrl);
     if (wp & MK_SHIFT)
         mods |= CXUI_MOD_Shift;
     if (wp & MK_CONTROL)
@@ -188,7 +188,7 @@ bool _cxuiWin32Pointer(CxUiPeer* p, HWND hwnd, bool* tracking, UINT msg, WPARAM 
     case WM_MOUSELEAVE:
         *tracking = false;
         _cxuiNativeEnter();
-        _cxuiCanvasPointer(p, CXUI_PTR_Left, 0, 0, keyMods(), (CxUiPoint){ 0, 0 });
+        _cxuiCanvasPointer(p, CXUI_PTR_Left, 0, 0, _cxuiWin32KeyMods(), (CxUiPoint){ 0, 0 });
         _cxuiNativeLeave();
         return true;
     case WM_LBUTTONDOWN: kind = CXUI_PTR_Press;   button = CXUI_BTN_Left;   break;

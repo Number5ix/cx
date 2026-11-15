@@ -69,6 +69,7 @@ static bool gtk4Init(flags_t flags)
     g_source_set_name(queueSource, "cxui queue");
     g_source_attach(queueSource, NULL);
     _cxuiGtk4ThemeWatch(true);
+    _cxuiGtk4DesktopInit();
     return true;
 }
 
@@ -157,6 +158,9 @@ const CxUiBackend _cxuiGtk4Backend = {
     .windowBeginModal = _cxuiGtk4WindowBeginModal,
     .windowEndModal   = _cxuiGtk4WindowEndModal,
     .windowSetOwner   = _cxuiGtk4WindowSetOwner,
+    .windowSetFullscreen = _cxuiGtk4WindowSetFullscreen,
+    .windowMonitor       = _cxuiGtk4WindowMonitor,
+    .windowSetTopmost    = _cxuiGtk4WindowSetTopmost,
 
     .systemScale      = _cxuiGtk4SystemScale,
     .canvasCreate     = _cxuiGtk4CanvasCreate,
@@ -169,6 +173,12 @@ const CxUiBackend _cxuiGtk4Backend = {
     .peerRaise        = _cxuiGtk4PeerRaise,
     .peerSetTip       = _cxuiGtk4PeerSetTip,
     .canvasSetCursor  = _cxuiGtk4CanvasSetCursor,
+    .canvasSetCursorImage = _cxuiGtk4CanvasSetCursorImage,
+    .canvasWarpPointer    = _cxuiGtk4CanvasWarpPointer,
+    .canvasSetTextInput  = _cxuiGtk4CanvasSetTextInput,
+    .canvasSetTextCaret  = _cxuiGtk4CanvasSetTextCaret,
+    .canvasSetKeyCapture = _cxuiGtk4CanvasSetKeyCapture,
+    .canvasPointerLock   = _cxuiGtk4CanvasPointerLock,
     .doubleClick      = _cxuiGtk4DoubleClick,
 
     .panelCreate         = _cxuiGtk4PanelCreate,

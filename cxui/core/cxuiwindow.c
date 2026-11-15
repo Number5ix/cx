@@ -185,21 +185,67 @@ _objinit_guaranteed bool CxUiWindow_init(_In_ CxUiWindow* self)
     // Autogen ends -------
 }
 
+// Enters or leaves a fullscreen mode on the monitor asked for; the window is shown.
+static bool fullscreenApply(CxUiWindow* self, uint32 mode)
+{
+    if (!_cxui.backend->windowSetFullscreen)
+        return false;
+    CxUiMonitor mon         = { 0 };
+    const CxUiMonitor* want = NULL;
+    if (mode != CXUI_FULLSCREEN_None && self->_fsMonitorGiven) {
+        if (!_cxuiMonitorFind(self->_fsMonitorId, self->_fsMonitor, &mon))
+            return false;
+        want = &mon;
+    }
+    // Set first: the platform may report the change while it makes it.
+    uint32 old         = self->_fullscreen;
+    self->_fullscreen  = mode;
+    objAcquire(self);
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->windowSetFullscreen(self->peer, mode, want);
+    _cxuiNativeLeave();
+    if (!ok && windowLive(self))
+        self->_fullscreen = old;
+    objRelease(&self);
+    cxuiMonitorDestroy(&mon);
+    return ok;
+}
+
 void CxUiWindow_show(_In_ CxUiWindow* self, uint32 mode)
 {
     if (windowOffThread(self, WINOP_Show, mode) || !CxUiWindow_realize(self))
         return;
+    bool fsPlaced = false;
     if (self->_placeStatePending && (mode == CXUI_SHOW_Normal || mode == CXUI_SHOW_NoActivate)) {
         if (self->_placeState == CXUI_WINDOW_Maximized)
             mode = CXUI_SHOW_Maximized;
         else if (self->_placeState == CXUI_WINDOW_Minimized)
             mode = CXUI_SHOW_Minimized;
+        else if (self->_placeState == CXUI_WINDOW_Fullscreen)
+            fsPlaced = true;
     }
     self->_placeStatePending = false;
-    self->_visible           = true;
+    // Restoring or maximizing leaves fullscreen: before showing a shown window, after a hidden one.
+    bool leaveFs = self->_fullscreen != CXUI_FULLSCREEN_None && !self->_fsPending && !fsPlaced &&
+                   (mode == CXUI_SHOW_Normal || mode == CXUI_SHOW_Maximized);
+    if (leaveFs && self->_visible) {
+        leaveFs = false;
+        fullscreenApply(self, CXUI_FULLSCREEN_None);
+    }
+    self->_visible = true;
     _cxuiNativeEnter();
     _cxui.backend->windowShow(self->peer, mode);
     _cxuiNativeLeave();
+    if (!windowLive(self))
+        return;
+    if (leaveFs)
+        fullscreenApply(self, CXUI_FULLSCREEN_None);
+    if (mode != CXUI_SHOW_Minimized && (self->_fsPending || fsPlaced)) {
+        uint32 fs         = self->_fsPending ? self->_fsWant : CXUI_FULLSCREEN_System;
+        self->_fsPending  = false;
+        if (fs != CXUI_FULLSCREEN_None)
+            fullscreenApply(self, fs);
+    }
     if (!self->_shownOnce) {
         self->_shownOnce = true;
         // Focus set in a window that isn't being activated would activate it on Windows.
@@ -219,6 +265,7 @@ void CxUiWindow_hide(_In_ CxUiWindow* self)
     popupEnd(self, 0);
     ModalShow* m   = modalRelease(self);
     self->_visible = false;
+    _cxuiInputHidden(CxUiWidget(self));
     if (self->peer) {
         _cxuiNativeEnter();
         _cxui.backend->windowHide(self->peer);
@@ -292,8 +339,10 @@ bool CxUiWindow_realize(_In_ CxUiWindow* self)
     if (self->peer)
         return true;
 
-    self->_dark    = themeDark(self->_theme);
-    self->_size    = _cxuiLayoutStartSize(self);
+    self->_dark     = themeDark(self->_theme);
+    self->_size     = _cxuiLayoutStartSize(self);
+    self->_state    = CXUI_WINDOW_Normal;
+    self->_occluded = false;
     CxUiPeer* p    = _cxui.backend->windowCreate(self);
     if (!p)
         return false;
@@ -309,6 +358,8 @@ bool CxUiWindow_realize(_In_ CxUiWindow* self)
         applyPlacement(self, &pl);
     }
     ownerApply(self);
+    if (self->_topmost && _cxui.backend->windowSetTopmost)
+        _cxui.backend->windowSetTopmost(self->peer, true);
     if (self->_nearPending) {
         self->_nearPending = false;
         CxUiWindow* other  = self->_nearGiven ? objAcquireFromWeak(CxUiWindow, self->_nearOther) : NULL;
@@ -470,8 +521,14 @@ bool CxUiWindow_placement(_In_ CxUiWindow* self, _Out_ CxUiPlacement* out)
 
     _cxui.backend->windowGetPlacement(self->peer, out);
     out->valid &= _cxui.backend->placementCaps;
-    if (self->_placeStatePending && !self->_visible && (out->valid & CXUI_PLACE_State))
-        out->state = self->_placeState;
+    if (out->valid & CXUI_PLACE_State) {
+        if (self->_placeStatePending && !self->_visible)
+            out->state = self->_placeState;
+        else if (self->_fullscreen != CXUI_FULLSCREEN_None && self->_visible)
+            out->state = CXUI_WINDOW_Fullscreen;
+        if (self->_fsPending && !self->_visible)
+            out->state = self->_fsWant != CXUI_FULLSCREEN_None ? CXUI_WINDOW_Fullscreen : CXUI_WINDOW_Normal;
+    }
     return true;
 }
 
@@ -505,11 +562,26 @@ static void applyPlacement(CxUiWindow* self, const CxUiPlacement* p)
     if ((pl.valid & CXUI_PLACE_State) && !self->_visible) {
         self->_placeState        = pl.state;
         self->_placeStatePending = true;
+        self->_fsPending         = false;
+    }
+    // Fullscreen is entered once the rectangle is applied, on the monitor that holds it; any other
+    // state leaves fullscreen first.
+    bool enterFs = withState && pl.state == CXUI_WINDOW_Fullscreen;
+    if (enterFs) {
+        withState = false;
+        if (self->_fullscreen != CXUI_FULLSCREEN_None)
+            enterFs = false;
+    } else if (withState && self->_fullscreen != CXUI_FULLSCREEN_None) {
+        fullscreenApply(self, CXUI_FULLSCREEN_None);
     }
     _cxuiNativeEnter();
     _cxui.backend->windowSetPlacement(self->peer, &pl, withState);
     _cxuiNativeLeave();
     _cxuiLayoutDirty(CxUiWidget(self));
+    if (enterFs) {
+        self->_fsMonitorGiven = false;
+        fullscreenApply(self, CXUI_FULLSCREEN_System);
+    }
 }
 
 void CxUiWindow_setPlacement(_In_ CxUiWindow* self, _In_ const CxUiPlacement* p)
@@ -536,6 +608,66 @@ void CxUiWindow_setPlacement(_In_ CxUiWindow* self, _In_ const CxUiPlacement* p)
     stored->valid |= valid;
     if (valid & CXUI_PLACE_Position)
         self->_nearPending = false;
+}
+
+bool CxUiWindow_setFullscreen(_In_ CxUiWindow* self, uint32 mode, _In_opt_ const CxUiMonitor* monitor)
+{
+    if (!windowLive(self) || mode > CXUI_FULLSCREEN_Monitor || !_cxui.backend->windowSetFullscreen)
+        return false;
+    CxUiMonitor mon = { 0 };
+    bool known      = !monitor || _cxuiMonitorFind(monitor->id, monitor->bounds, &mon);
+    cxuiMonitorDestroy(&mon);
+    if (!known)
+        return false;
+    self->_fsMonitorGiven = monitor != NULL;
+    self->_fsMonitor      = monitor ? monitor->bounds : (CxUiRect){ 0 };
+    strDup(&self->_fsMonitorId, monitor ? monitor->id : NULL);
+    if (!self->peer || !self->_visible) {
+        self->_fsWant    = mode;
+        self->_fsPending = true;
+        return true;
+    }
+    self->_fsPending = false;
+    return fullscreenApply(self, mode);
+}
+
+bool CxUiWindow_setTopmost(_In_ CxUiWindow* self, bool on)
+{
+    if (!windowLive(self) || !_cxui.backend->windowSetTopmost)
+        return false;
+    self->_topmost = on;
+    if (!self->peer)
+        return true;
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->windowSetTopmost(self->peer, on);
+    _cxuiNativeLeave();
+    return ok;
+}
+
+bool CxUiWindow_topmost(_In_ CxUiWindow* self)
+{
+    return windowLive(self) && self->_topmost;
+}
+
+bool CxUiWindow_occluded(_In_ CxUiWindow* self)
+{
+    return windowLive(self) && self->peer && self->_occluded;
+}
+
+int32 CxUiWindow_monitor(_In_ CxUiWindow* self)
+{
+    if (!windowLive(self) || !self->peer || !self->_visible || !_cxui.backend->windowMonitor)
+        return -1;
+    return _cxui.backend->windowMonitor(self->peer);
+}
+
+uint32 CxUiWindow_fullscreen(_In_ CxUiWindow* self)
+{
+    if (!windowLive(self))
+        return CXUI_FULLSCREEN_None;
+    if (self->_fsPending && !self->_visible)
+        return self->_fsWant;
+    return self->_fullscreen;
 }
 
 bool CxUiWindow_moveNear(_In_ CxUiWindow* self, _In_opt_ CxUiWindow* other, uint32 where)
@@ -759,6 +891,7 @@ void CxUiWindow_destroy(_In_ CxUiWindow* self)
     objDestroyWeak(&self->_defaultEnter);
     objDestroyWeak(&self->_defaultEsc);
     objDestroyWeak(&self->_startFocus);
+    strDestroy(&self->_fsMonitorId);
     // Autogen ends -------
 }
 
@@ -770,6 +903,7 @@ void _cxuiWindowDestroyed(CxUiWindow* w)
     popupEnd(w, 0);
     ModalShow* m = modalRelease(w);
     w->_visible  = false;
+    _cxuiInputHidden(CxUiWidget(w));
     if (w->peer) {
         _cxuiNativeEnter();
         _cxui.backend->windowHide(w->peer);
@@ -1004,7 +1138,29 @@ void _cxuiWindowStateChanged(CxUiPeer* p, uint32 state)
     CxUiWindow* w = peerWindow(p);
     if (!w)
         return;
-    CxUiShowStateEvent ev = { .base.kind = CXUI_EV_ShowState, .state = state };
+    // The user can enter and leave fullscreen too; a minimized window keeps its mode.
+    if (state == CXUI_WINDOW_Fullscreen) {
+        if (w->_fullscreen == CXUI_FULLSCREEN_None)
+            w->_fullscreen = CXUI_FULLSCREEN_System;
+    } else if (state != CXUI_WINDOW_Minimized) {
+        w->_fullscreen = CXUI_FULLSCREEN_None;
+    }
+    w->_state             = state;
+    CxUiShowStateEvent ev = { .base.kind = CXUI_EV_ShowState, .state = state, .occluded = w->_occluded };
+    _cxuiDispatch(CxUiWidget(w), &ev.base);
+}
+
+_Use_decl_annotations_
+void _cxuiWindowOccluded(CxUiPeer* p, bool occluded)
+{
+    CxUiWindow* w = peerWindow(p);
+    if (!w || w->_occluded == occluded)
+        return;
+    w->_occluded = occluded;
+    // As the platform has it now, which it may not have reported since the window was shown
+    CxUiPlacement pl;
+    uint32 state = CxUiWindow_placement(w, &pl) && (pl.valid & CXUI_PLACE_State) ? pl.state : w->_state;
+    CxUiShowStateEvent ev = { .base.kind = CXUI_EV_ShowState, .state = state, .occluded = occluded };
     _cxuiDispatch(CxUiWidget(w), &ev.base);
 }
 
@@ -1014,8 +1170,14 @@ void _cxuiWindowActivated(CxUiPeer* p, bool active)
     CxUiWindow* w = peerWindow(p);
     if (!w)
         return;
-    CxUiFocusEvent ev = { .base.kind = CXUI_EV_Focus, .gained = active };
-    _cxuiDispatch(CxUiWidget(w), &ev.base);
+    w->_inactive = !active;
+    objAcquire(w);
+    uint32 flags = _cxuiInputActivated(w, active);
+    if (windowLive(w)) {
+        CxUiFocusEvent ev = { .base.kind = CXUI_EV_Focus, .gained = active, .flags = flags };
+        _cxuiDispatch(CxUiWidget(w), &ev.base);
+    }
+    objRelease(&w);
 }
 
 _Use_decl_annotations_

@@ -3,6 +3,7 @@
 /// @file desktop.h
 /// @brief The clipboard and the monitors
 
+#include <cx/closure.h>
 #include <cxui/cxui_shared.h>
 
 CX_C_BEGIN
@@ -17,17 +18,18 @@ CX_C_BEGIN
 ///
 /// **Monitor rectangles** are in the platform's screen units, the same as window placement's
 /// (CxUiPlacement): physical pixels on Windows, device-independent pixels on Linux, points on
-/// macOS.
+/// macOS. A monitor's **id** finds it again on a later run, when monitors may be listed in
+/// another order; save it with the program's settings rather than the monitor's position in
+/// the list.
 ///
 /// @code
 ///   cxuiClipboardSetText(_SL("copied\n"));
 ///
-///   sa_CxUiMonitor mons;
-///   saInit(&mons, opaque(CxUiMonitor), 4);
+///   sa_CxUiMonitor mons = { 0 };
 ///   cxuiMonitors(&mons);
 ///   for (int32 i = 0; i < saSize(mons); i++) {
-///       if (mons.a[i].flags & CXUI_MON_Primary)
-///           useArea(mons.a[i].workArea);
+///       if (strEq(mons.a[i].id, savedId))
+///           cxuiWindowSetFullscreen(win, CXUI_FULLSCREEN_Monitor, &mons.a[i]);
 ///   }
 ///   saDestroy(&mons);
 /// @endcode
@@ -52,9 +54,27 @@ bool cxuiClipboardGetText(_Inout_ string* out);
 
 /// Lists the monitors
 ///
-/// @param out Array of CxUiMonitor, which is cleared first; the primary monitor comes first
+/// @param out Array of CxUiMonitor, which is cleared first, and set up if it is `{ 0 }`; the
+/// primary monitor comes first
 /// @return How many there are; 0 if the platform can't tell
 int32 cxuiMonitors(_Inout_ sa_CxUiMonitor* out);
+
+/// Copies a monitor, to keep it apart from the list it came from
+///
+/// @param out Receives the copy; whatever it held is destroyed first
+/// @param m The monitor
+void cxuiMonitorCopy(_Inout_ CxUiMonitor* out, _In_ const CxUiMonitor* m);
+
+/// Frees the strings in a monitor kept apart from a list, and clears it
+///
+/// @param m The monitor
+void cxuiMonitorDestroy(_Inout_ CxUiMonitor* m);
+
+/// Called when monitors are connected, disconnected or rearranged, or their settings change
+///
+/// Raised on the UI thread, with no arguments; call cxuiMonitors() again for the new list. Attach
+/// with cchainAttach().
+extern cchain cxuiMonitorsChangedNotify;
 
 /// @}  // end of cxui_desktop group
 

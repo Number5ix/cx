@@ -244,7 +244,7 @@ _objinit_guaranteed bool CxUiWidget_init(_In_ CxUiWidget* self)
 
 uint32 CxUiWidget_eventMask(_In_ CxUiWidget* self)
 {
-    return (1 << CXUI_EV_Key) | (1 << CXUI_EV_Focus);
+    return (1 << CXUI_EV_Key) | (1 << CXUI_EV_Focus) | (1 << CXUI_EV_Text);
 }
 
 CxUiSize CxUiWidget_measure(_In_ CxUiWidget* self)

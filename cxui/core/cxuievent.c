@@ -24,11 +24,12 @@ static const char* const slotSig[CXUI_EV_Count] = {
     [CXUI_EV_Check] = "CxUiCheckFn",
     [CXUI_EV_Edit] = "CxUiEditFn",
     [CXUI_EV_Surface] = "CxUiSurfaceFn",
+    [CXUI_EV_Text] = "CxUiTextFn",
 };
 
-#define BUBBLES ((1 << CXUI_EV_Key) | (1 << CXUI_EV_Wheel))
+#define BUBBLES ((1 << CXUI_EV_Key) | (1 << CXUI_EV_Wheel) | (1 << CXUI_EV_Text))
 // Input a disabled widget never sees
-#define INPUT ((1 << CXUI_EV_Key) | (1 << CXUI_EV_Wheel) | (1 << CXUI_EV_Mouse))
+#define INPUT ((1 << CXUI_EV_Key) | (1 << CXUI_EV_Wheel) | (1 << CXUI_EV_Mouse) | (1 << CXUI_EV_Text))
 
 static void handlerSlotDtor(stype st, stgeneric* gen, uint32 flags)
 {
@@ -144,6 +145,7 @@ static CxUiResult callHandler(closure fn, CxUiEvent* ev)
         CALL_SLOT(Check);
         CALL_SLOT(Edit);
         CALL_SLOT(Surface);
+        CALL_SLOT(Text);
     default:
         return CXUI_Default;
     }

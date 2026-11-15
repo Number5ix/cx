@@ -82,6 +82,14 @@ void _cxuiCanvasRealize(CxUiCanvas* cv, CxUiPeer* parent)
     _cxuiPeerAttach(CxUiWidget(cv), p);
     if (cv->_cursor != CXUI_CURSOR_Arrow && _cxui.backend->canvasSetCursor)
         _cxui.backend->canvasSetCursor(p, cv->_cursor);
+    if (cv->_cursorImage && _cxui.backend->canvasSetCursorImage)
+        _cxui.backend->canvasSetCursorImage(p, cv->_cursorImage);
+    if (cv->_textInput && _cxui.backend->canvasSetTextInput)
+        _cxui.backend->canvasSetTextInput(p, cv->_textInput);
+    if (cv->_hasCaret && _cxui.backend->canvasSetTextCaret)
+        _cxui.backend->canvasSetTextCaret(p, cv->_caret);
+    if (cv->_keyCapture && _cxui.backend->canvasSetKeyCapture)
+        _cxui.backend->canvasSetKeyCapture(p, cv->_keyCapture);
     // Unknown until placed, so placing it repaints all of it.
     cv->_size    = (CxUiSize){ 0 };
     cv->_dirty.n = 0;
@@ -139,18 +147,20 @@ _objinit_guaranteed bool CxUiCanvas_init(_In_ CxUiCanvas* self)
     // Autogen ends -------
 }
 
+// An area in the canvas's units in physical pixels, outward, to cover every pixel it touches
+static CxUiRect areaPx(CxUiCanvas* cv, int32 x, int32 y, int32 w, int32 h)
+{
+    if (!isDip(cv))
+        return (CxUiRect){ x, y, w, h };
+    float32 s = cxuiWidgetScale(cv);
+    int32 x0  = (int32)floor(x * s), y0 = (int32)floor(y * s);
+    return (CxUiRect){ x0, y0, (int32)ceil(((float64)x + w) * s) - x0, (int32)ceil(((float64)y + h) * s) - y0 };
+}
+
 void CxUiCanvas_invalidate(_In_ CxUiCanvas* self, int32 x, int32 y, int32 w, int32 h)
 {
-    if (!canvasLive(self))
-        return;
-    CxUiRect px = { x, y, w, h };
-    if (isDip(self)) {
-        // Outward, to cover every pixel the area touches
-        float32 s = cxuiWidgetScale(self);
-        int32 x0  = (int32)floor(x * s), y0 = (int32)floor(y * s);
-        px = (CxUiRect){ x0, y0, (int32)ceil(((float64)x + w) * s) - x0, (int32)ceil(((float64)y + h) * s) - y0 };
-    }
-    _cxuiCanvasInvalidatePx(self, px);
+    if (canvasLive(self))
+        _cxuiCanvasInvalidatePx(self, areaPx(self, x, y, w, h));
 }
 
 void CxUiCanvas_invalidateAll(_In_ CxUiCanvas* self)
@@ -179,11 +189,43 @@ bool CxUiCanvas_size(_In_ CxUiCanvas* self, _Out_ CxUiSize* out)
 
 void CxUiCanvas_setCursor(_In_ CxUiCanvas* self, uint32 cursor)
 {
-    if (!canvasLive(self) || cursor >= CXUI_CURSOR_Count || cursor == self->_cursor)
+    if (!canvasLive(self) || cursor >= CXUI_CURSOR_Count)
+        return;
+    CxUiCanvas_setCursorImage(self, NULL);
+    if (cursor == self->_cursor)
         return;
     self->_cursor = cursor;
     if (self->peer && _cxui.backend->canvasSetCursor)
         _cxui.backend->canvasSetCursor(self->peer, cursor);
+}
+
+void CxUiCanvas_setCursorImage(_In_ CxUiCanvas* self, _In_opt_ CxUiCursor* cursor)
+{
+    if (!canvasLive(self) || cursor == self->_cursorImage)
+        return;
+    CxUiCursor* old    = self->_cursorImage;
+    self->_cursorImage = cursor ? objAcquire(cursor) : NULL;
+    if (self->peer && _cxui.backend->canvasSetCursorImage)
+        _cxui.backend->canvasSetCursorImage(self->peer, self->_cursorImage);
+    objRelease(&old);
+}
+
+bool CxUiCanvas_warpPointer(_In_ CxUiCanvas* self, int32 x, int32 y)
+{
+    if (!canvasLive(self) || !self->peer || self->peer->hidden || _cxui.lock == self ||
+        !_cxui.backend->canvasWarpPointer)
+        return false;
+    CxUiPoint px = { x, y };
+    if (isDip(self)) {
+        float32 s = cxuiWidgetScale(self);
+        px        = (CxUiPoint){ (int32)floor(x * s), (int32)floor(y * s) };
+    }
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->canvasWarpPointer(self->peer, px);
+    _cxuiNativeLeave();
+    if (ok && canvasLive(self))
+        _cxuiCanvasWarped(self, px);
+    return ok;
 }
 
 uint32 CxUiCanvas_units(_In_ CxUiCanvas* self)
@@ -201,6 +243,70 @@ void CxUiCanvas_setUnits(_In_ CxUiCanvas* self, uint32 units)
         _cxuiCanvasInvalidatePx(self, (CxUiRect){ 0, 0, self->_size.w, self->_size.h });
         sendResize(self);
     }
+}
+
+bool CxUiCanvas_setTextInput(_In_ CxUiCanvas* self, flags_t flags)
+{
+    if (!canvasLive(self))
+        return false;
+    flags &= CXUI_TEXTINPUT_On;
+    self->_textInput = flags;
+    if (!_cxui.backend->canvasSetTextInput)
+        return !flags;
+    if (!self->peer)
+        return true;
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->canvasSetTextInput(self->peer, flags);
+    _cxuiNativeLeave();
+    return ok || !flags;
+}
+
+flags_t CxUiCanvas_textInput(_In_ CxUiCanvas* self)
+{
+    return canvasLive(self) ? self->_textInput : 0;
+}
+
+void CxUiCanvas_setTextCaret(_In_ CxUiCanvas* self, int32 x, int32 y, int32 w, int32 h)
+{
+    if (!canvasLive(self))
+        return;
+    self->_caret    = areaPx(self, x, y, max(w, 0), max(h, 0));
+    self->_hasCaret = true;
+    if (self->peer && _cxui.backend->canvasSetTextCaret)
+        _cxui.backend->canvasSetTextCaret(self->peer, self->_caret);
+}
+
+bool CxUiCanvas_setKeyCapture(_In_ CxUiCanvas* self, flags_t flags)
+{
+    if (!canvasLive(self))
+        return false;
+    flags = (flags & CXUI_KEYCAPTURE_On) ? flags & (CXUI_KEYCAPTURE_On | CXUI_KEYCAPTURE_SystemKey) : 0;
+    self->_keyCapture = flags;
+    if (!_cxui.backend->canvasSetKeyCapture)
+        return true;
+    if (!self->peer)
+        return true;
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->canvasSetKeyCapture(self->peer, flags);
+    _cxuiNativeLeave();
+    return ok;
+}
+
+flags_t CxUiCanvas_keyCapture(_In_ CxUiCanvas* self)
+{
+    return canvasLive(self) ? self->_keyCapture : 0;
+}
+
+bool CxUiCanvas_setPointerLock(_In_ CxUiCanvas* self, uint32 mode)
+{
+    if (!canvasLive(self) || mode > CXUI_POINTERLOCK_Raw)
+        return false;
+    return _cxuiPointerLockSet(self, mode);
+}
+
+uint32 CxUiCanvas_pointerLockMode(_In_ CxUiCanvas* self)
+{
+    return canvasLive(self) ? self->_lockMode : CXUI_POINTERLOCK_Off;
 }
 
 extern void CxUiWidget_realizePeer(_In_ CxUiWidget* self, _In_ CxUiPeer* host);   // parent
@@ -237,7 +343,7 @@ extern uint32 CxUiWidget_eventMask(_In_ CxUiWidget* self);   // parent
 uint32 CxUiCanvas_eventMask(_In_ CxUiCanvas* self)
 {
     return parent_eventMask() | (1 << CXUI_EV_Key) | (1 << CXUI_EV_Mouse) | (1 << CXUI_EV_Wheel) |
-           (1 << CXUI_EV_Focus) | (1 << CXUI_EV_Paint) | (1 << CXUI_EV_Resize);
+           (1 << CXUI_EV_Focus) | (1 << CXUI_EV_Paint) | (1 << CXUI_EV_Resize) | (1 << CXUI_EV_Text);
 }
 
 // ---- render views ----
@@ -333,6 +439,13 @@ void _cxuiSurfacesLost(CxUiWidget* w)
         if (child)
             _cxuiSurfacesLost(child);
     }
+}
+
+void CxUiCanvas_destroy(_In_ CxUiCanvas* self)
+{
+    // Autogen begins -----
+    objRelease(&self->_cursorImage);
+    // Autogen ends -------
 }
 
 // Autogen begins -----

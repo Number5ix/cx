@@ -46,6 +46,12 @@ void _cxuiAppKitPeerDestroy(CxUiPeer* p);
 // The innermost popup's window, or nil
 NSWindow* _cxuiAppKitModalWindow(void);
 void _cxuiAppKitWindowSetOwner(CxUiPeer* p, CxUiPeer* owner);
+bool _cxuiAppKitWindowSetFullscreen(CxUiPeer* p, uint32 mode, const CxUiMonitor* mon);
+int32 _cxuiAppKitWindowMonitorOf(CxUiPeer* p);
+bool _cxuiAppKitWindowSetTopmost(CxUiPeer* p, bool on);
+bool _cxuiAppKitTestTopmost(CxUiPeer* p, bool* topmost);
+// Frames each Monitor window to its screen again, after the screens changed
+void _cxuiAppKitMonitorsReframe(void);
 bool _cxuiAppKitWindowMoveNear(CxUiPeer* p, CxUiPeer* other, uint32 where);
 bool _cxuiAppKitTestOwnedBy(CxUiPeer* p, CxUiPeer* owner, bool* owned);
 void _cxuiAppKitWindowSetMenu(CxUiPeer* p, CxUiPeer* menu);
@@ -82,6 +88,16 @@ void _cxuiAppKitCanvasInvalidate(CxUiPeer* p, CxUiRect px);
 void _cxuiAppKitCanvasPaintNow(CxUiPeer* p);
 void _cxuiAppKitCanvasCapture(CxUiPeer* p, bool on);
 void _cxuiAppKitCanvasSetCursor(CxUiPeer* p, uint32 cursor);
+void _cxuiAppKitCanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor);
+bool _cxuiAppKitCanvasWarpPointer(CxUiPeer* p, CxUiPoint px);
+bool _cxuiAppKitCanvasSetTextInput(CxUiPeer* p, flags_t flags);
+void _cxuiAppKitCanvasSetTextCaret(CxUiPeer* p, CxUiRect px);
+bool _cxuiAppKitCanvasSetKeyCapture(CxUiPeer* p, flags_t flags);
+uint32 _cxuiAppKitCanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px);
+// Whether a responder is a canvas that captures keys, and hands it one; false for a key the
+// system keeps, which goes on as usual
+bool _cxuiAppKitCanvasTakesKeys(_In_opt_ id responder);
+bool _cxuiAppKitCanvasCaptureKey(_In_ id responder, _In_ NSEvent* ev);
 void _cxuiAppKitDoubleClick(int64* time, int32* distance);
 bool _cxuiAppKitTestExpose(CxUiPeer* p);
 bool _cxuiAppKitTestScreenOrigin(CxUiPeer* p, CxUiPoint* out);
@@ -123,6 +139,10 @@ bool _cxuiAppKitTestFrontmost(CxUiPeer* win, CxUiPeer* p, CxUiPoint px, bool* fr
 
 // appkit_desktop.m
 void _cxuiAppKitMonitors(sa_CxUiMonitor* out);
+// The index of a window's screen in what _cxuiAppKitMonitors gives, or -1
+int32 _cxuiAppKitWindowMonitor(_In_ NSWindow* w);
+// Watches the screens for changes, once for the process
+void _cxuiAppKitDesktopInit(void);
 bool _cxuiAppKitClipboardSetText(strref text);
 bool _cxuiAppKitClipboardGetText(string* out);
 

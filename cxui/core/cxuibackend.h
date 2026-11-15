@@ -126,6 +126,19 @@ typedef struct CxUiBackend {
     // Takes input away from a window while a modal belongs to it; NULL where the platform's own
     // modality already does that.
     void (*windowSetEnabled)(CxUiPeer* p, bool enabled);
+    // Enters a CxUiFullscreen mode on mon (NULL: the monitor the window is on, already matched
+    // against the platform's list), or leaves fullscreen with CXUI_FULLSCREEN_None; the window is
+    // shown. Reports entering and leaving through _cxuiWindowStateChanged with
+    // CXUI_WINDOW_Fullscreen, now or once the platform has done it; leaving puts back the frame,
+    // rectangle and state the window had before. False if the platform can't; NULL where it has no
+    // fullscreen.
+    bool (*windowSetFullscreen)(CxUiPeer* p, uint32 mode, const CxUiMonitor* mon);
+    // The index, in what monitors gives now, of the monitor with most of the window; -1 if
+    // unknown. NULL where the platform can't tell.
+    int32 (*windowMonitor)(CxUiPeer* p);
+    // Keeps the window above other programs' windows, or not; false if the platform can't. NULL
+    // where it never can.
+    bool (*windowSetTopmost)(CxUiPeer* p, bool on);
 
     // ---- scale and canvases ----
     // The main monitor's scale, for widgets not in a realized window; NULL for 1.0.
@@ -146,6 +159,31 @@ typedef struct CxUiBackend {
     // core starts it on the first press and ends it when the last button is released.
     void (*canvasCapture)(CxUiPeer* p, bool on);
     void (*canvasSetCursor)(CxUiPeer* p, uint32 cursor);
+    // A cursor made from an image, which the core holds while it is set; NULL goes back to the
+    // cursor canvasSetCursor gave. The backend makes its own native cursor from the image, at the
+    // image's size in physical pixels. NULL where cursors can't be made from images.
+    void (*canvasSetCursorImage)(CxUiPeer* p, CxUiCursor* cursor);
+    // Moves the pointer to px, in physical pixels relative to the canvas; false where the platform
+    // can't. NULL where it never can.
+    bool (*canvasWarpPointer)(CxUiPeer* p, CxUiPoint px);
+    // CxUiTextInputFlags: while on, what is typed into the canvas goes to _cxuiCanvasText after its
+    // key, never control characters. False if the platform can't; NULL where it has no text input.
+    bool (*canvasSetTextInput)(CxUiPeer* p, flags_t flags);
+    // Where the canvas draws its caret, in physical pixels, for the system's typing windows; NULL
+    // where nothing uses it.
+    void (*canvasSetTextCaret)(CxUiPeer* p, CxUiRect px);
+    // CxUiKeyCaptureFlags; the core already keeps the window's own handling of the canvas's keys
+    // away. While on and the canvas has focus, every key and key-up reaches _cxuiKey before the
+    // platform's shortcuts, except those the system keeps and the ones that close the window or
+    // quit. False if a flag isn't supported; NULL where nothing is needed beyond the core's part.
+    bool (*canvasSetKeyCapture)(CxUiPeer* p, flags_t flags);
+    // Locks the pointer to the canvas in a CxUiPointerLocks mode at px (physical pixels, relative
+    // to the canvas), or with CXUI_POINTERLOCK_Off lets it go, showing it at px. Returns the mode
+    // achieved, Off if none; a call while locked changes the mode, keeping px. While locked, motion
+    // goes to _cxuiCanvasPointerMotion, and presses and releases to _cxuiCanvasPointer as before.
+    // The mouse stays with the canvas until both the lock and the core's capture (canvasCapture)
+    // let go of it. NULL where the pointer can't be locked.
+    uint32 (*canvasPointerLock)(CxUiPeer* p, uint32 mode, CxUiPoint px);
     // A render view's native surface, once it exists (a canvas peer created for a CxUiRenderView,
     // which has no draw target); its size is filled in by the core. A surface that comes after the
     // peer is reported through _cxuiRenderViewReady; it is destroyed only with the peer.
@@ -404,6 +442,8 @@ typedef struct CxUiBackend {
     bool (*testFrontmost)(CxUiPeer* win, CxUiPeer* p, CxUiPoint px, bool* front);
     // Whether the window is the active one, which keyboard input goes to; NULL where unknown.
     bool (*testWindowActive)(CxUiPeer* p, bool* active);
+    // Whether the native window is kept above others; NULL where it can't be read back.
+    bool (*testTopmost)(CxUiPeer* p, bool* topmost);
     // A text field's state as the platform has it; NULL where it can't be read back.
     bool (*testTextInfo)(CxUiPeer* p, CxUiTestTextInfo* out);
     // A label's or button's state as the platform has it; NULL where it can't be read back.

@@ -47,6 +47,12 @@ bool _cxuiGtk4TestFrameDark(CxUiPeer* p, bool* dark);
 void _cxuiGtk4WindowBeginModal(CxUiPeer* p, CxUiPeer* owner);
 void _cxuiGtk4WindowEndModal(CxUiPeer* p);
 void _cxuiGtk4WindowSetOwner(CxUiPeer* p, CxUiPeer* owner);
+bool _cxuiGtk4WindowSetFullscreen(CxUiPeer* p, uint32 mode, const CxUiMonitor* mon);
+int32 _cxuiGtk4WindowMonitor(CxUiPeer* p);
+bool _cxuiGtk4WindowSetTopmost(CxUiPeer* p, bool on);
+// Whether GDK runs on X11, and asking its window manager to keep a window above others
+bool _cxuiGtk4X11Display(void);
+void _cxuiGtk4X11SetAbove(_In_ GtkWindow* win, bool on);
 bool _cxuiGtk4TestOwnedBy(CxUiPeer* p, CxUiPeer* owner, bool* owned);
 GtkWindow* _cxuiGtk4PeerWindow(CxUiPeer* p);
 void _cxuiGtk4PeerDestroy(CxUiPeer* p);
@@ -57,6 +63,12 @@ void _cxuiGtk4WindowSetPlacement(CxUiPeer* p, const CxUiPlacement* pl, bool with
 
 // gtk4_desktop.c
 void _cxuiGtk4Monitors(sa_CxUiMonitor* out);
+// The index of the monitor the window is on in what _cxuiGtk4Monitors gives, or -1
+int32 _cxuiGtk4MonitorOf(_In_ GtkWindow* win);
+// Watches the monitors for changes, for the session
+void _cxuiGtk4DesktopInit(void);
+// The GDK monitor a CxUiMonitor describes, borrowed; NULL if it isn't connected
+GdkMonitor* _cxuiGtk4MonitorFor(_In_ const CxUiMonitor* m);
 bool _cxuiGtk4ClipboardSetText(_In_opt_ strref text);
 bool _cxuiGtk4ClipboardGetText(_Inout_ string* out);
 void _cxuiGtk4ClipboardStore(void);
@@ -99,6 +111,12 @@ bool _cxuiGtk4TestExpose(CxUiPeer* p);
 void _cxuiGtk4CanvasCapture(CxUiPeer* p, bool on);
 void _cxuiGtk4PeerFocus(CxUiPeer* p);
 void _cxuiGtk4CanvasSetCursor(CxUiPeer* p, uint32 cursor);
+void _cxuiGtk4CanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor);
+bool _cxuiGtk4CanvasWarpPointer(CxUiPeer* p, CxUiPoint px);
+bool _cxuiGtk4CanvasSetTextInput(CxUiPeer* p, flags_t flags);
+void _cxuiGtk4CanvasSetTextCaret(CxUiPeer* p, CxUiRect px);
+bool _cxuiGtk4CanvasSetKeyCapture(CxUiPeer* p, flags_t flags);
+uint32 _cxuiGtk4CanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px);
 // The widget a container peer's children go in
 GtkWidget* _cxuiGtk4HostWidget(_In_opt_ CxUiPeer* host);
 // Puts a peer's widget in a root, placed at *bounds (physical pixels, kept by the peer)
@@ -195,6 +213,10 @@ bool _cxuiGtk4TestClick(CxUiPeer* p);
 // gtk4_input.c: each returns true if cxui handled the event
 bool _cxuiGtk4Key(_In_ CxUiPeer* p, _In_ GdkEvent* ev);
 bool _cxuiGtk4Pointer(_In_ CxUiPeer* p, _In_ GtkWidget* w, _In_ GdkEvent* ev, _Inout_ CxUiPoint* last);
+// An event's position relative to w, in physical pixels; *last for an event without one
+CxUiPoint _cxuiGtk4EventPx(_In_ GtkWidget* w, _In_ GdkEvent* ev, _Inout_ CxUiPoint* last);
+// CxUiModifiers in a GDK modifier state
+uint32 _cxuiGtk4StateMods(GdkModifierType st);
 void _cxuiGtk4DoubleClick(int64* time, int32* distance);
 bool _cxuiGtk4TestNativeKey(CxUiPeer* p, CxUiKey key, uint32 mods);
 void _cxuiGtk4CanvasDestroy(CxUiPeer* p);

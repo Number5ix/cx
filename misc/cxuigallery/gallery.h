@@ -37,6 +37,7 @@ extern const GalleryPage galleryText;
 extern const GalleryPage galleryLayout;
 extern const GalleryPage galleryTabs;
 extern const GalleryPage galleryCanvas;
+extern const GalleryPage galleryInput;
 extern const GalleryPage galleryDesktop;
 extern const GalleryPage galleryModals;
 extern const GalleryPage galleryWindows;

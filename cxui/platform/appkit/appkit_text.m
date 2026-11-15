@@ -662,12 +662,15 @@ void _cxuiAppKitTextSetColors(CxUiPeer* p, const CxUiTextColors* c)
 // ---- keys ----
 
 // Keys for a field, or a focused button, go to cxui before AppKit dispatches them anywhere, which
-// is the only point ahead of both the menu bar's shortcuts and the control's own handling.
+// is the only point ahead of both the menu bar's shortcuts and the control's own handling. So do
+// all of a canvas's that captures keys, including the key-ups AppKit drops while Command is held.
 static id keyMonitor;
 
 static NSEvent* routeKey(NSEvent* ev)
 {
     NSWindow* w = ev.window;
+    if (w && _cxuiAppKitCanvasTakesKeys(w.firstResponder))
+        return _cxuiAppKitCanvasCaptureKey(w.firstResponder, ev) ? nil : ev;
     CxUiPeer* p = w ? _cxuiAppKitTextPeerFor(w.firstResponder) : NULL;
     if (w && !p)
         p = _cxuiAppKitControlPeerFor(w.firstResponder);

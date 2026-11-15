@@ -35,7 +35,7 @@ CX_C_BEGIN
 /// - **Captured values are copied**, and captured objects are held by reference until the handler
 ///   is replaced or the widget is destroyed. A handler rarely needs to capture its own widget:
 ///   the event says which widget it is for (`ev->base.current`).
-/// - **Key and wheel events bubble.** If the handler returns CXUI_Default, or there is none, the
+/// - **Key, wheel and text events bubble.** If the handler returns CXUI_Default, or there is none, the
 ///   event goes on to the widget's parent, and so on up to the window. CXUI_Handled stops it and
 ///   suppresses the platform's own handling of it.
 /// - **Handlers run on the UI thread**, and can do anything there, including destroying the
@@ -100,7 +100,8 @@ enum CxUiMouseFlags {
 /// @brief Payload for CXUI_EV_Mouse
 ///
 /// While any button is held, the canvas that saw it go down gets every event until all are
-/// released, even outside its bounds.
+/// released, even outside its bounds. While the pointer is locked (cxuiCanvasSetPointerLock()),
+/// every event goes to the locked canvas, at the point where the lock began.
 typedef struct CxUiMouseEvent {
     CxUiEvent base;
     uint32 action;    ///< CxUiMouseActions
@@ -109,6 +110,10 @@ typedef struct CxUiMouseEvent {
     uint32 mods;      ///< CxUiModifiers held
     uint32 flags;     ///< CxUiMouseFlags
     int32 x, y;       ///< Physical pixels from the canvas's top left; may be outside it
+    /// For Move: how far the mouse moved since the canvas's last mouse event, in the canvas's
+    /// units; 0 for the first move after Enter, and for other actions. While the pointer is locked,
+    /// how far the mouse moved although the pointer stays put.
+    float32 dx, dy;
 } CxUiMouseEvent;
 
 /// @brief Payload for CXUI_EV_Wheel
@@ -122,10 +127,18 @@ typedef struct CxUiWheelEvent {
     int32 x, y;       ///< Physical pixels from the target's top left
 } CxUiWheelEvent;
 
+/// Flags in CxUiFocusEvent::flags
+enum CxUiFocusFlags {
+    /// A window's activation: a pointer lock in it was let go as it became inactive, or taken
+    /// again as it became active
+    CXUI_FOCUS_PointerLock = 0x01,
+};
+
 /// @brief Payload for CXUI_EV_Focus
 typedef struct CxUiFocusEvent {
     CxUiEvent base;
     bool gained;
+    uint32 flags;   ///< CxUiFocusFlags
 } CxUiFocusEvent;
 
 /// @brief Payload for CXUI_EV_Paint
@@ -156,17 +169,23 @@ typedef struct CxUiCloseEvent {
     uint32 reason;   ///< CxUiCloseReasons
 } CxUiCloseEvent;
 
-/// Whether a window is minimized, maximized or neither
+/// Whether a window is minimized, maximized, fullscreen or none of those
 enum CxUiWindowStates {
     CXUI_WINDOW_Normal,
     CXUI_WINDOW_Minimized,
     CXUI_WINDOW_Maximized,
+    /// Fullscreen, in either CxUiFullscreen mode
+    CXUI_WINDOW_Fullscreen,
 };
 
 /// @brief Payload for CXUI_EV_ShowState
+///
+/// Also raised, with the state unchanged, when the window becomes hidden behind others or shown
+/// again (cxuiWindowOccluded()).
 typedef struct CxUiShowStateEvent {
     CxUiEvent base;
-    uint32 state;   ///< CxUiWindowStates
+    uint32 state;    ///< CxUiWindowStates
+    bool occluded;   ///< Nothing of the window can be seen, so it needn't draw
 } CxUiShowStateEvent;
 
 /// @brief Payload for CXUI_EV_Move
@@ -277,12 +296,27 @@ typedef struct CxUiEditEvent {
 } CxUiEditEvent;
 
 /// @brief Payload for CXUI_EV_Surface
+///
+/// When the surface is going, the handler must not return until the renderer has stopped using
+/// it. A renderer on another thread needs a hand-off that the handler waits for; that thread must
+/// not wait on cxuiCallSync() meanwhile, since the UI thread can't run the call until the handler
+/// returns.
 typedef struct CxUiSurfaceEvent {
     CxUiEvent base;
     /// true: the surface is there to present to (cxuiRenderViewSurface()). false: it goes when
     /// the handler returns, so the renderer must let go of it first.
     bool available;
 } CxUiSurfaceEvent;
+
+/// @brief Payload for CXUI_EV_Text
+///
+/// Text the user typed into a canvas with text input on (cxuiCanvasSetTextInput()), after the key
+/// event for the key that typed it.
+typedef struct CxUiTextEvent {
+    CxUiEvent base;
+    /// The characters, in UTF-8; never control characters. Borrowed for the call.
+    strref text;
+} CxUiTextEvent;
 
 typedef CxUiResult (*CxUiActivateFn)(stvlist* cvars, CxUiActivateEvent* ev);
 typedef CxUiResult (*CxUiChangeFn)(stvlist* cvars, CxUiChangeEvent* ev);
@@ -305,6 +339,7 @@ typedef CxUiResult (*CxUiExpandFn)(stvlist* cvars, CxUiExpandEvent* ev);
 typedef CxUiResult (*CxUiCheckFn)(stvlist* cvars, CxUiCheckEvent* ev);
 typedef CxUiResult (*CxUiEditFn)(stvlist* cvars, CxUiEditEvent* ev);
 typedef CxUiResult (*CxUiSurfaceFn)(stvlist* cvars, CxUiSurfaceEvent* ev);
+typedef CxUiResult (*CxUiTextFn)(stvlist* cvars, CxUiTextEvent* ev);
 
 // Internal: use cxuiSetHandler() or the cxuiOn* macros
 void _cxuiSetHandler(_In_ CxUiWidget* w, CxUiEventKind kind, _In_opt_ closure fn);
@@ -518,6 +553,15 @@ void _cxuiSetHandler(_In_ CxUiWidget* w, CxUiEventKind kind, _In_opt_ closure fn
 /// @param fn Handler function
 /// @param ... Values to capture (`stvNone` for none)
 #define cxuiOnSurface(w, fn, ...) _cxuiOn(w, Surface, fn, __VA_ARGS__)
+
+/// void cxuiOnText(CxUiWidget* w, CxUiTextFn fn, ...)
+///
+/// Sets the handler for text typed into a canvas (CXUI_EV_Text)
+///
+/// @param w The canvas, or a container around it
+/// @param fn Handler function
+/// @param ... Values to capture (`stvNone` for none)
+#define cxuiOnText(w, fn, ...) _cxuiOn(w, Text, fn, __VA_ARGS__)
 
 /// @}  // end of cxui_events group
 

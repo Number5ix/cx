@@ -5802,6 +5802,303 @@ static int test_cxuid_idle(void)
     return ret;
 }
 
+// ---- canvas input ----
+
+typedef struct UiInputTest {
+    CxUiWindow* w;
+    CxUiCanvas* cv;
+    int32 keysDown;      // key downs the canvas saw
+    int32 tabs, escapes;
+    int32 cancels;       // the default Esc button was pressed
+    bool keyBeforeText;  // the A's key down came before its text
+    string text;
+    uint32 lockMode;
+    bool lockSet, unlockSet;
+    bool warped;
+    int32 monitor;        // the window's, or -1
+    int32 monitors;
+    string why;
+} UiInputTest;
+
+static CxUiResult uiInKey(stvlist* cvars, CxUiKeyEvent* ev)
+{
+    UiInputTest* t = stvlNextPtr(cvars);
+    if (!ev->down)
+        return CXUI_Handled;
+    t->keysDown++;
+    if (ev->key == CXUI_KEY_A && strEmpty(t->text))
+        t->keyBeforeText = true;
+    if (ev->key == CXUI_KEY_Tab)
+        t->tabs++;
+    if (ev->key == CXUI_KEY_Escape)
+        t->escapes++;
+    return CXUI_Default;
+}
+
+static CxUiResult uiInText(stvlist* cvars, CxUiTextEvent* ev)
+{
+    UiInputTest* t = stvlNextPtr(cvars);
+    strAppend(&t->text, ev->text);
+    return CXUI_Handled;
+}
+
+static CxUiResult uiInCancel(stvlist* cvars, CxUiActivateEvent* ev)
+{
+    unused_noeval(ev);
+    ((UiInputTest*)stvlNextPtr(cvars))->cancels++;
+    return CXUI_Handled;
+}
+
+static bool uiInBuild(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiInputTest* t     = stvlAtPtr(cvars, 0);
+    t->w               = cxuiWindowCreate(&(CxUiWindowDesc){ .title = _S"cxui canvas input test", .size = { 300, 200 } });
+    CxUiBox* col       = cxuiBoxCreateV();
+    t->cv              = cxuiCanvasCreate(NULL);
+    CxUiButton* cancel = cxuiButtonCreate(&(CxUiButtonDesc){ .title = _S"Cancel" });
+    cxuiOnKey(t->cv, uiInKey, stvar(ptr, t));
+    cxuiOnText(t->cv, uiInText, stvar(ptr, t));
+    cxuiOnActivate(cancel, uiInCancel, stvar(ptr, t));
+    cxuiContainerAppend(col, t->cv);
+    cxuiContainerAppend(col, cancel);
+    cxuiContainerAppend(t->w, col);
+    cxuiWindowSetDefaultEsc(t->w, cancel);
+    cxuiCanvasSetTextInput(t->cv, CXUI_TEXTINPUT_On);
+    cxuiCanvasSetKeyCapture(t->cv, CXUI_KEYCAPTURE_On);
+    objRelease(&cancel);
+    objRelease(&col);
+    cxuiWindowShow(t->w, CXUI_SHOW_Normal);
+    cxuiFocus(t->cv);
+    return true;
+}
+
+static bool uiInFocused(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiInputTest* t = stvlAtPtr(cvars, 0);
+    bool active    = false;
+    return cxuiFocused(t->w) == CxUiWidget(t->cv) && (!cxuiTestWindowActive(t->w, &active) || active);
+}
+
+static bool uiInType(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiInputTest* t = stvlAtPtr(cvars, 0);
+    return cxuiTestNativeKey(CxUiWidget(t->cv), stvlAt(cvars, 1, int32), 0);
+}
+
+static bool uiInTyped(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiInputTest* t = stvlAtPtr(cvars, 0);
+    return strEq(t->text, _S"a") && t->tabs == 1 && t->escapes == 1;
+}
+
+static bool uiInLock(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiInputTest* t = stvlAtPtr(cvars, 0);
+    t->lockSet     = cxuiCanvasSetPointerLock(t->cv, CXUI_POINTERLOCK_Warp);
+    t->lockMode    = cxuiCanvasPointerLockMode(t->cv);
+    t->unlockSet   = cxuiCanvasSetPointerLock(t->cv, CXUI_POINTERLOCK_Off) &&
+                   cxuiCanvasPointerLockMode(t->cv) == CXUI_POINTERLOCK_Off;
+
+    // A cursor from an image, then the stock one again
+    uint8 px[16 * 16 * 4];
+    for (int32 i = 0; i < 16 * 16; i++)
+        memcpy(&px[i * 4], (uint8[4]){ 255, 128, 0, (uint8)(i % 16 < 8 ? 255 : 0) }, 4);
+    CxUiImage* img  = cxuiImageCreateRGBA(16, 16, 16 * 4, px);
+    CxUiCursor* cur = cxuiCursorCreate(img, 8, 8);
+    cxuiCanvasSetCursorImage(t->cv, cur);
+    cxuiCanvasSetCursor(t->cv, CXUI_CURSOR_Arrow);
+    objRelease(&cur);
+    objRelease(&img);
+    t->warped = cxuiCanvasWarpPointer(t->cv, 5, 5);
+
+    sa_CxUiMonitor mons = { 0 };
+    t->monitors = cxuiMonitors(&mons);
+    t->monitor  = cxuiWindowMonitor(t->w);
+    for (int32 i = 0; i < saSize(mons); i++)
+        logFmt(Info, _SL("monitor ${int}: '${string}' id '${string}', ${float} Hz"), stvar(int32, i),
+               stvar(strref, mons.a[i].name), stvar(strref, mons.a[i].id), stvar(float64, mons.a[i].refreshHz));
+    saDestroy(&mons);
+    return true;
+}
+
+// Typed into a canvas through the platform: the key, then its text; Tab and Esc reach a canvas
+// that captures keys without moving focus or pressing the default button. The pointer can be
+// locked and let go, and moved; a cursor can be made from an image; the window says which
+// monitor it is on.
+static int test_cxuid_canvasinput(void)
+{
+    UI_START_NATIVE();
+    UiInputTest t = { 0 };
+    cxuiCallSync(closureCreate(uiInBuild, stvar(ptr, &t)));
+    bool focused = uiPollSync(uiInFocused, &t, timeS(5));
+    bool native  = focused && cxuiCallSync(closureCreate(uiInType, stvar(ptr, &t), stvar(int32, CXUI_KEY_A))) &&
+                  cxuiCallSync(closureCreate(uiInType, stvar(ptr, &t), stvar(int32, CXUI_KEY_Tab))) &&
+                  cxuiCallSync(closureCreate(uiInType, stvar(ptr, &t), stvar(int32, CXUI_KEY_Escape)));
+    bool typed = native && uiPollSync(uiInTyped, &t, timeS(5));
+    // Let anything late arrive before checking that nothing else happened.
+    if (typed)
+        osSleep(timeMS(200));
+    bool stayed = typed && cxuiCallSync(closureCreate(uiInFocused, stvar(ptr, &t)));
+    cxuiCallSync(closureCreate(uiInLock, stvar(ptr, &t)));
+    cxuiCallSync(closureCreate(uiDestroyWindow, stvar(ptr, t.w)));
+    cxuiShutdown();
+    objRelease(&t.cv);
+    objRelease(&t.w);
+
+    int ret = 0;
+    if (!focused) {
+        // A display with no keyboard (headless Wayland) never activates a window.
+        logStr(Info, _SL("the window never became active"));
+        strDestroy(&t.text);
+        return CX_TEST_SKIP;
+    }
+    if (!native)
+        logStr(Info, _SL("the platform can't type for tests; keys skipped"));
+    else if (!typed || !stayed || !t.keyBeforeText || t.cancels != 0)
+        TEST_FAILV(ret, 1, _SL("typed \"${string}\", key first ${int}, ${int} Tab and ${int} Esc, focus kept ${int}, "
+                               "default pressed ${int} times"),
+                   stvar(strref, t.text), stvar(int32, t.keyBeforeText), stvar(int32, t.tabs), stvar(int32, t.escapes),
+                   stvar(int32, stayed), stvar(int32, t.cancels));
+    if (t.lockSet && (t.lockMode == CXUI_POINTERLOCK_Off || !t.unlockSet))
+        TEST_FAILV(ret, 1, _SL("locked, mode ${uint}; unlocked ${int}"), stvar(uint32, t.lockMode),
+                   stvar(int32, t.unlockSet));
+#if !defined(_PLATFORM_UNIX) || defined(_PLATFORM_MACOS)
+    if (!t.lockSet || !t.warped)
+        TEST_FAILV(ret, 1, _SL("the pointer couldn't be locked (${int}) or moved (${int})"), stvar(int32, t.lockSet),
+                   stvar(int32, t.warped));
+#endif
+    if (t.monitors < 1 || t.monitor < 0 || t.monitor >= t.monitors)
+        TEST_FAILV(ret, 1, _SL("the window is on monitor ${int} of ${int}"), stvar(int32, t.monitor),
+                   stvar(int32, t.monitors));
+    strDestroy(&t.text);
+    return ret;
+}
+
+// ---- fullscreen ----
+
+typedef struct UiFsTest {
+    CxUiWindow* w;
+    uint32 state;
+    int32 events;
+} UiFsTest;
+
+static CxUiResult uiFsState(stvlist* cvars, CxUiShowStateEvent* ev)
+{
+    UiFsTest* t = stvlNextPtr(cvars);
+    t->state    = ev->state;
+    t->events++;
+    return CXUI_Default;
+}
+
+static bool uiFsBuild(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiFsTest* t = stvlAtPtr(cvars, 0);
+    t->w        = cxuiWindowCreate(&(CxUiWindowDesc){ .title = _S"cxui fullscreen test", .size = { 300, 200 } });
+    cxuiOnShowState(t->w, uiFsState, stvar(ptr, t));
+    cxuiWindowShow(t->w, CXUI_SHOW_Normal);
+    return true;
+}
+
+static bool uiFsShown(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiFsTest* t = stvlAtPtr(cvars, 0);
+    bool shown  = false;
+    return cxuiTestShown(CxUiWidget(t->w), &shown) && shown;
+}
+
+static bool uiFsSet(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiFsTest* t = stvlAtPtr(cvars, 0);
+    return cxuiWindowSetFullscreen(t->w, stvlAt(cvars, 1, uint32), NULL);
+}
+
+static bool uiFsIs(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiFsTest* t   = stvlAtPtr(cvars, 0);
+    uint32 want   = stvlAt(cvars, 1, int32);
+    uint32 fsWant = want == CXUI_WINDOW_Fullscreen ? stvlAt(cvars, 2, int32) : CXUI_FULLSCREEN_None;
+    CxUiPlacement pl;
+    return t->state == want && cxuiWindowFullscreen(t->w) == fsWant && cxuiWindowPlacement(t->w, &pl) &&
+           (!(pl.valid & CXUI_PLACE_State) || pl.state == want);
+}
+
+static bool uiFsWait(UiFsTest* t, uint32 state, uint32 mode)
+{
+    int64 end = clockTimer() + timeS(5);
+    for (;;) {
+        if (cxuiCallSync(closureCreate(uiFsIs, stvar(ptr, t), stvar(int32, state), stvar(int32, mode))))
+            return true;
+        if (clockTimer() > end)
+            return false;
+        osSleep(timeMS(10));
+    }
+}
+
+static bool uiFsTopmost(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiFsTest* t = stvlAtPtr(cvars, 0);
+    bool on     = stvlAt(cvars, 1, bool);
+    bool top    = !on;
+    // Where the platform can't read it back, setting it is all that can be checked.
+    return cxuiWindowSetTopmost(t->w, on) && (!cxuiTestTopmost(t->w, &top) || top == on);
+}
+
+// Both fullscreen modes are entered and left, each raising the show state event; the window can
+// be kept above others and let go again.
+static int test_cxuid_fullscreen(void)
+{
+    UI_START_NATIVE();
+    UiFsTest t = { 0 };
+    cxuiCallSync(closureCreate(uiFsBuild, stvar(ptr, &t)));
+    bool shown = uiPollSync(uiFsShown, &t, timeS(5));
+    int ret    = 0;
+    for (uint32 mode = CXUI_FULLSCREEN_System; shown && mode <= CXUI_FULLSCREEN_Monitor; mode++) {
+        bool set     = cxuiCallSync(closureCreate(uiFsSet, stvar(ptr, &t), stvar(uint32, mode)));
+        bool entered = set && uiFsWait(&t, CXUI_WINDOW_Fullscreen, mode);
+        if (!entered) {
+            // Without a window manager, X11 has nothing to make a window fullscreen.
+#if defined(_PLATFORM_UNIX) && !defined(_PLATFORM_MACOS)
+            if (set && !uiEnvHas(_SL("CXUI_TEST_WM")) && !uiEnvHas(_SL("WAYLAND_DISPLAY"))) {
+                logStr(Info, _SL("no window manager to make the window fullscreen"));
+                ret = CX_TEST_SKIP;
+                break;
+            }
+#endif
+            TEST_FAILV(ret, 1, _SL("mode ${uint}: set ${int}, state ${uint} after ${int} events"), stvar(uint32, mode),
+                       stvar(int32, set), stvar(uint32, t.state), stvar(int32, t.events));
+            break;
+        }
+        cxuiCallSync(closureCreate(uiFsSet, stvar(ptr, &t), stvar(uint32, CXUI_FULLSCREEN_None)));
+        if (!uiFsWait(&t, CXUI_WINDOW_Normal, CXUI_FULLSCREEN_None)) {
+            TEST_FAILV(ret, 1, _SL("mode ${uint} wasn't left: state ${uint}"), stvar(uint32, mode), stvar(uint32, t.state));
+            break;
+        }
+    }
+    bool topmost = shown && cxuiCallSync(closureCreate(uiFsTopmost, stvar(ptr, &t), stvar(bool, true))) &&
+                   cxuiCallSync(closureCreate(uiFsTopmost, stvar(ptr, &t), stvar(bool, false)));
+    cxuiCallSync(closureCreate(uiDestroyWindow, stvar(ptr, t.w)));
+    cxuiShutdown();
+    objRelease(&t.w);
+    if (!shown)
+        TEST_FAIL(1, _SL("the window wasn't shown"), stvNone);
+#if !defined(_PLATFORM_UNIX) || defined(_PLATFORM_MACOS)
+    if (!topmost)
+        TEST_FAIL(1, _SL("the window couldn't be kept above others"), stvNone);
+#endif
+    unused_noeval(topmost);
+    return ret;
+}
+
 testfunc cxuidisplaytest_funcs[] = {
     { "sessions", test_cxuid_sessions },
     { "flood", test_cxuid_flood },
@@ -5834,6 +6131,8 @@ testfunc cxuidisplaytest_funcs[] = {
     { "owned", test_cxuid_owned },
     { "hidden", test_cxuid_hidden },
     { "idle", test_cxuid_idle },
+    { "canvasinput", test_cxuid_canvasinput },
+    { "fullscreen", test_cxuid_fullscreen },
 #if defined(_PLATFORM_WIN)
     { "themechange", test_cxuid_themechange },
 #endif

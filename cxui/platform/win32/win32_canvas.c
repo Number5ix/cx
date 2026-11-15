@@ -1,5 +1,10 @@
 #include "win32_ui.h"
 
+#include <imm.h>
+#include <windowsx.h>
+
+#pragma comment(lib, "imm32.lib")
+
 // A canvas is a child window that never erases. WM_PAINT paints what the core has marked dirty
 // into the back buffer, then copies the area Windows asked for, so uncovering a canvas copies
 // from the buffer without running the paint handler.
@@ -8,9 +13,24 @@ typedef struct Win32Canvas {
     CxUiCanvasPeer cp;
     HWND hwnd;
     uint32 cursor;   // CxUiCursors
+    HCURSOR imageCursor;   // made from an image, while one is set
     bool tracking;   // TrackMouseEvent will report the pointer leaving
     bool captured;   // the core asked for capture and Windows hasn't taken it away
+    flags_t textInput;
+    flags_t keyCapture;
+    WCHAR highSurrogate;   // the first half of a character outside the BMP, waiting for the second
+    // CxUiPointerLocks in effect, where the lock began in the canvas and on the screen, and the
+    // last absolute position raw input gave, as it does in remote sessions
+    uint32 lockMode;
+    CxUiPoint lockAt;
+    POINT lockScreen;
+    POINT rawAbs;
+    bool rawAbsValid;
 } Win32Canvas;
+
+#ifndef MOUSE_VIRTUAL_DESKTOP
+#define MOUSE_VIRTUAL_DESKTOP 0x02
+#endif
 
 static const WCHAR canvasClass[] = L"CxUiCanvas";
 // A render view's: a DC of its own, which a GL renderer needs
@@ -66,6 +86,184 @@ static HCURSOR cursorFor(uint32 cursor)
     return cursor < CXUI_CURSOR_Count && ids[cursor] ? LoadCursorW(NULL, ids[cursor]) : NULL;
 }
 
+// An image's pixels as a cursor: a 32-bit color bitmap with straight alpha, and a mask Windows
+// ignores where there is alpha
+static HCURSOR imageCursorFor(CxUiCursor* cur)
+{
+    CxUiSize sz = cxuiImageSize(cur->_image);
+    int32 stride;
+    const uint8* rows = _cxuiImageRows(cur->_image, &stride);
+    BITMAPV5HEADER bi = { .bV5Size        = sizeof(bi),
+                          .bV5Width       = sz.w,
+                          .bV5Height      = -sz.h,   // top-down
+                          .bV5Planes      = 1,
+                          .bV5BitCount    = 32,
+                          .bV5Compression = BI_BITFIELDS,
+                          .bV5RedMask     = 0x00FF0000,
+                          .bV5GreenMask   = 0x0000FF00,
+                          .bV5BlueMask    = 0x000000FF,
+                          .bV5AlphaMask   = 0xFF000000 };
+    void* bits  = NULL;
+    HDC screen  = GetDC(NULL);
+    HBITMAP color = CreateDIBSection(screen, (BITMAPINFO*)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    ReleaseDC(NULL, screen);
+    HBITMAP mask = CreateBitmap(sz.w, sz.h, 1, 1, NULL);
+    HCURSOR made = NULL;
+    if (color && mask) {
+        for (int32 y = 0; y < sz.h; y++) {
+            const uint8* src = rows + (size_t)y * stride;
+            uint8* dst       = (uint8*)bits + (size_t)y * sz.w * 4;
+            for (int32 x = 0; x < sz.w * 4; x += 4) {
+                uint8 a    = src[x + 3];
+                dst[x]     = a ? (uint8)((src[x] * 255 + a / 2) / a) : 0;
+                dst[x + 1] = a ? (uint8)((src[x + 1] * 255 + a / 2) / a) : 0;
+                dst[x + 2] = a ? (uint8)((src[x + 2] * 255 + a / 2) / a) : 0;
+                dst[x + 3] = a;
+            }
+        }
+        ICONINFO ii = { FALSE, (DWORD)cur->_hot.x, (DWORD)cur->_hot.y, mask, color };
+        made        = CreateIconIndirect(&ii);
+    }
+    if (color)
+        DeleteObject(color);
+    if (mask)
+        DeleteObject(mask);
+    return made;
+}
+
+static HCURSOR canvasCursor(Win32Canvas* c)
+{
+    return c->imageCursor ? c->imageCursor : cursorFor(c->cursor);
+}
+
+// ---- text ----
+
+// One UTF-16 unit typed; control characters are keys, not text.
+static void canvasChar(Win32Canvas* c, WCHAR ch)
+{
+    uint16 units[2];
+    int n = 0;
+    if (IS_HIGH_SURROGATE(ch)) {
+        c->highSurrogate = ch;
+        return;
+    }
+    if (IS_LOW_SURROGATE(ch)) {
+        if (!c->highSurrogate)
+            return;
+        units[n++] = c->highSurrogate;
+    }
+    c->highSurrogate = 0;
+    if (ch < 0x20 || ch == 0x7F)
+        return;
+    units[n++] = ch;
+    string text = 0;
+    if (strFromUTF16(&text, units, n)) {
+        _cxuiNativeEnter();
+        _cxuiCanvasText(&c->cp.base, text);
+        _cxuiNativeLeave();
+    }
+    strDestroy(&text);
+}
+
+// Input methods only work on a canvas that takes text, so keys never start a composition
+// elsewhere.
+static void textInputApply(Win32Canvas* c)
+{
+    ImmAssociateContextEx(c->hwnd, NULL, c->textInput ? IACE_DEFAULT : 0);
+}
+
+// ---- the system key ----
+
+// While a canvas that takes the Windows key has focus in the active window, a low-level hook
+// passes the key to it instead of the Start menu.
+static HHOOK sysKeyHook;
+static HWND sysKeyTarget;
+static bool sysKeyHeld;
+
+static LRESULT CALLBACK sysKeyProc(int code, WPARAM wp, LPARAM lp)
+{
+    if (code == HC_ACTION && sysKeyTarget) {
+        KBDLLHOOKSTRUCT* k = (KBDLLHOOKSTRUCT*)lp;
+        if ((k->vkCode == VK_LWIN || k->vkCode == VK_RWIN) &&
+            GetForegroundWindow() == GetAncestor(sysKeyTarget, GA_ROOT)) {
+            bool up      = wp == WM_KEYUP || wp == WM_SYSKEYUP;
+            LPARAM keyLp = 1 | ((LPARAM)(k->scanCode & 0xFF) << 16) | ((k->flags & LLKHF_EXTENDED) ? 0x01000000 : 0) |
+                           (up ? 0xC0000000 : (sysKeyHeld ? 0x40000000 : 0));
+            sysKeyHeld   = !up;
+            PostMessageW(sysKeyTarget, up ? WM_KEYUP : WM_KEYDOWN, k->vkCode, keyLp);
+            return 1;
+        }
+    }
+    return CallNextHookEx(NULL, code, wp, lp);
+}
+
+bool _cxuiWin32SysKeyHeld(void)
+{
+    return sysKeyHeld;
+}
+
+static void sysKeyUpdate(Win32Canvas* c)
+{
+    bool want = (c->keyCapture & CXUI_KEYCAPTURE_SystemKey) && GetFocus() == c->hwnd;
+    if (want && sysKeyTarget != c->hwnd) {
+        if (!sysKeyHook)
+            sysKeyHook = SetWindowsHookExW(WH_KEYBOARD_LL, sysKeyProc, GetModuleHandleW(NULL), 0);
+        sysKeyTarget = sysKeyHook ? c->hwnd : NULL;
+    } else if (!want && sysKeyTarget == c->hwnd) {
+        sysKeyTarget = NULL;
+        sysKeyHeld   = false;
+        if (sysKeyHook)
+            UnhookWindowsHookEx(sysKeyHook);
+        sysKeyHook = NULL;
+    }
+}
+
+// ---- pointer lock ----
+
+static bool rawRegister(HWND target)
+{
+    RAWINPUTDEVICE rid = { 0x01, 0x02, target ? 0 : RIDEV_REMOVE, target };   // generic desktop, mouse
+    return RegisterRawInputDevices(&rid, 1, sizeof(rid)) != FALSE;
+}
+
+// Raw input gives the mouse's own motion; in a remote session it gives absolute positions
+// instead, whose differences stand in for it.
+static void lockRawInput(Win32Canvas* c, HRAWINPUT h)
+{
+    RAWINPUT ri;
+    UINT size = sizeof(ri);
+    if (GetRawInputData(h, RID_INPUT, &ri, &size, sizeof(RAWINPUTHEADER)) == (UINT)-1 ||
+        ri.header.dwType != RIM_TYPEMOUSE)
+        return;
+    const RAWMOUSE* m = &ri.data.mouse;
+    LONG dx = m->lLastX, dy = m->lLastY;
+    if (m->usFlags & MOUSE_MOVE_ABSOLUTE) {
+        bool virt = (m->usFlags & MOUSE_VIRTUAL_DESKTOP) != 0;
+        POINT at  = { MulDiv(m->lLastX, GetSystemMetrics(virt ? SM_CXVIRTUALSCREEN : SM_CXSCREEN), 65536),
+                      MulDiv(m->lLastY, GetSystemMetrics(virt ? SM_CYVIRTUALSCREEN : SM_CYSCREEN), 65536) };
+        dx = c->rawAbsValid ? at.x - c->rawAbs.x : 0;
+        dy = c->rawAbsValid ? at.y - c->rawAbs.y : 0;
+        c->rawAbs      = at;
+        c->rawAbsValid = true;
+    }
+    if (dx == 0 && dy == 0)
+        return;
+    _cxuiNativeEnter();
+    _cxuiCanvasPointerMotion(&c->cp.base, (float32)dx, (float32)dy, _cxuiWin32KeyMods());
+    _cxuiNativeLeave();
+}
+
+// The pointer goes back where the lock began; the moves that queued meanwhile are stale.
+static void lockWarpBack(Win32Canvas* c, LPARAM lp)
+{
+    if (GET_X_LPARAM(lp) == c->lockAt.x && GET_Y_LPARAM(lp) == c->lockAt.y)
+        return;
+    SetCursorPos(c->lockScreen.x, c->lockScreen.y);
+    MSG m;
+    while (PeekMessageW(&m, c->hwnd, WM_MOUSEMOVE, WM_MOUSEMOVE, PM_REMOVE))
+        ;
+}
+
 // Each core call is inside _cxuiNativeEnter/Leave, after which c may be gone; nothing here
 // touches c after one.
 static LRESULT canvasMessage(Win32Canvas* c, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -78,7 +276,7 @@ static LRESULT canvasMessage(Win32Canvas* c, HWND hwnd, UINT msg, WPARAM wp, LPA
         return 0;
     case WM_SETCURSOR:
         if (LOWORD(lp) == HTCLIENT) {
-            SetCursor(cursorFor(c->cursor));
+            SetCursor(c->lockMode ? NULL : canvasCursor(c));
             return TRUE;
         }
         break;
@@ -92,22 +290,57 @@ static LRESULT canvasMessage(Win32Canvas* c, HWND hwnd, UINT msg, WPARAM wp, LPA
         return 0;
     case WM_SETFOCUS:
     case WM_KILLFOCUS:
+        sysKeyUpdate(c);
         _cxuiNativeEnter();
         _cxuiFocusChanged(&c->cp.base, msg == WM_SETFOCUS);
         _cxuiNativeLeave();
         return 0;
     case WM_GETDLGCODE:
         return DLGC_WANTALLKEYS;
+    case WM_CHAR:
+        if (c->textInput) {
+            canvasChar(c, (WCHAR)wp);
+            return 0;
+        }
+        break;
+    case WM_INPUT:
+        if (c->lockMode)
+            lockRawInput(c, (HRAWINPUT)lp);
+        break;
     case WM_KEYDOWN:
     case WM_KEYUP:
-    case WM_SYSKEYDOWN:
-    case WM_SYSKEYUP:
         if (_cxuiWin32Key(&c->cp.base, msg, wp, lp))
+            return 0;
+        break;
+    // While the canvas captures keys, Alt and F10 don't open the window's menu, and Alt+Space not
+    // its system menu; Alt+F4 still closes the window.
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP: {
+        bool takeAll = (c->keyCapture & CXUI_KEYCAPTURE_On) != 0;
+        bool close   = msg == WM_SYSKEYDOWN && wp == VK_F4;
+        if (_cxuiWin32Key(&c->cp.base, msg, wp, lp) && !close)
+            return 0;
+        if (takeAll && !close)
+            return 0;
+        break;
+    }
+    case WM_SYSCHAR:
+        if (c->keyCapture & CXUI_KEYCAPTURE_On)
             return 0;
         break;
     case WM_MOUSEWHEEL:
     case WM_MOUSEHWHEEL:
         if (_cxuiWin32Wheel(msg, wp, lp))
+            return 0;
+        break;
+    case WM_MOUSEMOVE:
+        if (c->lockMode == CXUI_POINTERLOCK_Warp) {
+            lockWarpBack(c, lp);
+            return 0;
+        }
+        if (c->lockMode)
+            return 0;
+        if (_cxuiWin32Pointer(&c->cp.base, hwnd, &c->tracking, msg, wp, lp))
             return 0;
         break;
     default:
@@ -621,6 +854,7 @@ void _cxuiWin32CanvasPaintNow(CxUiPeer* p)
     UpdateWindow(((Win32Canvas*)p)->hwnd);
 }
 
+// A pointer lock holds the capture too; it goes once neither needs it.
 void _cxuiWin32CanvasCapture(CxUiPeer* p, bool on)
 {
     Win32Canvas* c = (Win32Canvas*)p;
@@ -628,19 +862,111 @@ void _cxuiWin32CanvasCapture(CxUiPeer* p, bool on)
     c->captured = on;
     if (on)
         SetCapture(c->hwnd);
-    else if (GetCapture() == c->hwnd)
+    else if (!c->lockMode && GetCapture() == c->hwnd)
         ReleaseCapture();
 }
 
+bool _cxuiWin32CanvasSetTextInput(CxUiPeer* p, flags_t flags)
+{
+    Win32Canvas* c   = (Win32Canvas*)p;
+    c->textInput     = flags;
+    c->highSurrogate = 0;
+    textInputApply(c);
+    return true;
+}
+
+// The system's typing windows go by the caret.
+void _cxuiWin32CanvasSetTextCaret(CxUiPeer* p, CxUiRect px)
+{
+    Win32Canvas* c = (Win32Canvas*)p;
+    HIMC imc       = ImmGetContext(c->hwnd);
+    if (!imc)
+        return;
+    COMPOSITIONFORM cf = { CFS_POINT, { px.x, px.y } };
+    ImmSetCompositionWindow(imc, &cf);
+    CANDIDATEFORM cand = { 0, CFS_EXCLUDE, { px.x, px.y }, { px.x, px.y, px.x + max(px.w, 1), px.y + px.h } };
+    ImmSetCandidateWindow(imc, &cand);
+    ImmReleaseContext(c->hwnd, imc);
+}
+
+bool _cxuiWin32CanvasSetKeyCapture(CxUiPeer* p, flags_t flags)
+{
+    Win32Canvas* c = (Win32Canvas*)p;
+    c->keyCapture  = flags;
+    sysKeyUpdate(c);
+    return true;
+}
+
+// The pointer is hidden and kept in place by warping it back (Warp), or by clipping it to the
+// point (Raw), while raw input reports the motion. A remote session's relative motion isn't to be
+// trusted, so Raw works as Warp there.
+uint32 _cxuiWin32CanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px)
+{
+    Win32Canvas* c = (Win32Canvas*)p;
+    POINT pt       = { px.x, px.y };
+    ClientToScreen(c->hwnd, &pt);
+    if (mode == CXUI_POINTERLOCK_Off) {
+        if (c->lockMode) {
+            c->lockMode = CXUI_POINTERLOCK_Off;
+            rawRegister(NULL);
+            ClipCursor(NULL);
+            SetCursorPos(pt.x, pt.y);
+            if (!c->captured && GetCapture() == c->hwnd)
+                ReleaseCapture();
+            SetCursor(canvasCursor(c));
+        }
+        return CXUI_POINTERLOCK_Off;
+    }
+    if (mode == CXUI_POINTERLOCK_Raw && GetSystemMetrics(SM_REMOTESESSION))
+        mode = CXUI_POINTERLOCK_Warp;
+    if (!c->lockMode && !rawRegister(c->hwnd))
+        return CXUI_POINTERLOCK_Off;
+    c->lockMode    = mode;
+    c->lockAt      = px;
+    c->lockScreen  = pt;
+    c->rawAbsValid = false;
+    SetCursorPos(pt.x, pt.y);
+    SetCapture(c->hwnd);
+    SetCursor(NULL);
+    if (mode == CXUI_POINTERLOCK_Raw) {
+        RECT r = { pt.x, pt.y, pt.x + 1, pt.y + 1 };
+        ClipCursor(&r);
+    } else {
+        ClipCursor(NULL);
+    }
+    return mode;
+}
+
+
+// WM_SETCURSOR only comes when the pointer moves; the cursor shows now if it's over the canvas.
+static void cursorShowNow(Win32Canvas* c)
+{
+    POINT pt;
+    if (!c->lockMode && GetCursorPos(&pt) && WindowFromPoint(pt) == c->hwnd)
+        SetCursor(canvasCursor(c));
+}
 
 void _cxuiWin32CanvasSetCursor(CxUiPeer* p, uint32 cursor)
 {
     Win32Canvas* c = (Win32Canvas*)p;
     c->cursor      = cursor;
-    // WM_SETCURSOR only comes when the pointer moves; show it now if it's over the canvas.
-    POINT pt;
-    if (GetCursorPos(&pt) && WindowFromPoint(pt) == c->hwnd)
-        SetCursor(cursorFor(cursor));
+    cursorShowNow(c);
+}
+
+void _cxuiWin32CanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor)
+{
+    Win32Canvas* c = (Win32Canvas*)p;
+    HCURSOR old    = c->imageCursor;
+    c->imageCursor = cursor ? imageCursorFor(cursor) : NULL;
+    cursorShowNow(c);
+    if (old)
+        DestroyIcon(old);
+}
+
+bool _cxuiWin32CanvasWarpPointer(CxUiPeer* p, CxUiPoint px)
+{
+    POINT pt = { px.x, px.y };
+    return ClientToScreen(((Win32Canvas*)p)->hwnd, &pt) && SetCursorPos(pt.x, pt.y);
 }
 
 _Use_decl_annotations_
@@ -723,7 +1049,13 @@ bool _cxuiWin32TestExpose(CxUiPeer* p)
 void _cxuiWin32CanvasDestroy(CxUiPeer* p)
 {
     Win32Canvas* c = (Win32Canvas*)p;
+    if (c->lockMode)
+        _cxuiWin32CanvasPointerLock(p, CXUI_POINTERLOCK_Off, c->lockAt);
+    c->keyCapture = 0;
+    sysKeyUpdate(c);
     DestroyWindow(c->hwnd);
+    if (c->imageCursor)
+        DestroyIcon(c->imageCursor);
     if (c->cp.ops)
         c->cp.ops->targetDestroy(c->cp.target);
     xaFree(c);

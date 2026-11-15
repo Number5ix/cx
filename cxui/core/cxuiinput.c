@@ -27,20 +27,35 @@ static bool inside(CxUiCanvas* cv, CxUiPoint px)
     return px.x >= 0 && px.y >= 0 && px.x < cv->_size.w && px.y < cv->_size.h;
 }
 
-// False if the handler left the canvas dead.
-static bool sendMouse(CxUiCanvas* cv, uint32 action, uint32 button, uint32 mods, uint32 flags, CxUiPoint px)
+// False if the handler left the canvas dead. dx, dy are in physical pixels.
+static bool sendMouse(CxUiCanvas* cv, uint32 action, uint32 button, uint32 mods, uint32 flags, CxUiPoint px,
+                      float32 dx, float32 dy)
 {
-    CxUiPoint at       = toUnits(cv, px);
-    CxUiMouseEvent ev  = { .base.kind = CXUI_EV_Mouse,
-                           .action    = action,
-                           .button    = button,
-                           .buttons   = cv->_buttons,
-                           .mods      = mods,
-                           .flags     = flags,
-                           .x         = at.x,
-                           .y         = at.y };
+    CxUiPoint at = toUnits(cv, px);
+    if (cv->_units == CXUI_Units_Dip) {
+        float32 s = cxuiWidgetScale(cv);
+        dx /= s;
+        dy /= s;
+    }
+    CxUiMouseEvent ev = { .base.kind = CXUI_EV_Mouse,
+                          .action    = action,
+                          .button    = button,
+                          .buttons   = cv->_buttons,
+                          .mods      = mods,
+                          .flags     = flags,
+                          .x         = at.x,
+                          .y         = at.y,
+                          .dx        = dx,
+                          .dy        = dy };
     _cxuiDispatch(CxUiWidget(cv), &ev.base);
     return _cxuiLive(CxUiWidget(cv));
+}
+
+// Where the pointer is now, which the next move's distance is measured from
+static void trackAt(CxUiCanvas* cv, CxUiPoint px)
+{
+    cv->_lastAt    = px;
+    cv->_lastValid = true;
 }
 
 static void captureEnd(CxUiCanvas* cv)
@@ -67,35 +82,49 @@ void _cxuiCanvasPointer(CxUiPeer* p, CxUiPointerKind kind, uint32 button, uint32
 {
     CxUiCanvas* cv = peerCanvas(p);
     // While another canvas has the mouse, input meant for this one is stale.
-    if (!cv || (_cxui.capture && _cxui.capture != cv))
+    if (!cv || (_cxui.capture && _cxui.capture != cv) || (_cxui.lock && _cxui.lock != cv))
         return;
+    // While locked, motion comes through _cxuiCanvasPointerMotion, and the rest happens where the
+    // lock began.
+    bool locked = _cxui.lock == cv;
+    if (locked) {
+        if (kind == CXUI_PTR_Move || kind == CXUI_PTR_Left)
+            return;
+        px = cv->_lockAt;
+    }
     objAcquire(cv);
     bool captured = _cxui.capture == cv;
 
     switch (kind) {
     case CXUI_PTR_Left:
+        cv->_lastValid = false;
         // A captured canvas keeps the pointer until release.
         if (!captured && cv->_hover) {
             cv->_hover = false;
-            sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px);
+            sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px, 0, 0);
         }
         break;
 
-    case CXUI_PTR_Move:
+    case CXUI_PTR_Move: {
         if (!captured && !inside(cv, px)) {
+            cv->_lastValid = false;
             if (cv->_hover) {
                 cv->_hover = false;
-                sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px);
+                sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px, 0, 0);
             }
             break;
         }
         if (!cv->_hover) {
             cv->_hover = true;
-            if (!sendMouse(cv, CXUI_MOUSE_Enter, 0, mods, 0, px))
+            trackAt(cv, px);
+            if (!sendMouse(cv, CXUI_MOUSE_Enter, 0, mods, 0, px, 0, 0))
                 break;
         }
-        sendMouse(cv, CXUI_MOUSE_Move, 0, mods, 0, px);
+        CxUiPoint from = cv->_lastValid ? cv->_lastAt : px;
+        trackAt(cv, px);
+        sendMouse(cv, CXUI_MOUSE_Move, 0, mods, 0, px, (float32)(px.x - from.x), (float32)(px.y - from.y));
         break;
+    }
 
     case CXUI_PTR_Press: {
         if (!captured) {
@@ -111,10 +140,11 @@ void _cxuiCanvasPointer(CxUiPeer* p, CxUiPointerKind kind, uint32 button, uint32
             if (!_cxuiLive(CxUiWidget(cv)))
                 break;
         }
+        trackAt(cv, px);
         if (!cv->_hover) {
             cv->_hover   = true;
             cv->_buttons = buttons & ~button;
-            if (!sendMouse(cv, CXUI_MOUSE_Enter, 0, mods, 0, px))
+            if (!sendMouse(cv, CXUI_MOUSE_Enter, 0, mods, 0, px, 0, 0))
                 break;
         }
         cv->_buttons = buttons | button;
@@ -124,20 +154,23 @@ void _cxuiCanvasPointer(CxUiPeer* p, CxUiPointerKind kind, uint32 button, uint32
         cv->_lastPress   = dbl ? 0 : now;
         cv->_lastButton  = button;
         cv->_lastPressAt = px;
-        sendMouse(cv, dbl ? CXUI_MOUSE_DoubleClick : CXUI_MOUSE_Down, button, mods, 0, px);
+        sendMouse(cv, dbl ? CXUI_MOUSE_DoubleClick : CXUI_MOUSE_Down, button, mods, 0, px, 0, 0);
         break;
     }
 
     case CXUI_PTR_Release:
         if (!captured)
             break;
+        trackAt(cv, px);
         cv->_buttons = buttons & ~button;
-        if (!sendMouse(cv, CXUI_MOUSE_Up, button, mods, 0, px) || cv->_buttons)
+        if (!sendMouse(cv, CXUI_MOUSE_Up, button, mods, 0, px, 0, 0) || cv->_buttons)
             break;
         captureEnd(cv);
-        if (!inside(cv, px) && cv->_hover) {
-            cv->_hover = false;
-            sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px);
+        // A handler may have let go of the lock; the pointer is then where the lock began.
+        if (!inside(cv, px) && cv->_hover && _cxui.lock != cv) {
+            cv->_hover     = false;
+            cv->_lastValid = false;
+            sendMouse(cv, CXUI_MOUSE_Leave, 0, mods, 0, px, 0, 0);
         }
         break;
     }
@@ -148,17 +181,21 @@ static void loseCapture(CxUiCanvas* cv)
 {
     objAcquire(cv);
     _cxui.capture = NULL;
-    // One Up for each button still held; where the pointer is isn't known, so it leaves too.
+    // One Up for each button still held. Where the pointer is isn't known, so it leaves too,
+    // unless it is locked, which keeps it where the lock began.
+    bool locked    = _cxui.lock == cv;
+    CxUiPoint at   = locked ? cv->_lockAt : (CxUiPoint){ -1, -1 };
     for (uint32 b = 1; b <= CXUI_BTN_X2 && cv->_buttons; b <<= 1) {
         if (!(cv->_buttons & b))
             continue;
         cv->_buttons &= ~b;
-        if (!sendMouse(cv, CXUI_MOUSE_Up, b, 0, CXUI_MOUSE_CaptureLost, (CxUiPoint){ -1, -1 }))
+        if (!sendMouse(cv, CXUI_MOUSE_Up, b, 0, CXUI_MOUSE_CaptureLost, at, 0, 0))
             break;
     }
-    if (_cxuiLive(CxUiWidget(cv)) && cv->_hover) {
-        cv->_hover = false;
-        sendMouse(cv, CXUI_MOUSE_Leave, 0, 0, 0, (CxUiPoint){ -1, -1 });
+    if (!locked && _cxuiLive(CxUiWidget(cv)) && cv->_hover) {
+        cv->_hover     = false;
+        cv->_lastValid = false;
+        sendMouse(cv, CXUI_MOUSE_Leave, 0, 0, 0, at, 0, 0);
     }
     objRelease(&cv);
 }
@@ -223,19 +260,192 @@ CxUiResult _cxuiKey(CxUiPeer* p, CxUiKey key, uint32 mods, uint32 scancode, bool
     CxUiKeyEvent ev = { .base.kind = CXUI_EV_Key, .key = key, .mods = mods, .scancode = scancode, .down = down,
                         .repeat = repeat };
     CxUiWidget* w   = objAcquire(p->w);
+    // A canvas that captures keys keeps them from the window's own handling, whatever its handler
+    // returns.
+    CxUiCanvas* cv  = objDynCast(CxUiCanvas, w);
+    bool captured   = cv && (cv->_keyCapture & CXUI_KEYCAPTURE_On);
     CxUiResult r    = _cxuiDispatch(w, &ev.base);
     // Focus moves only when nothing along the way took the key.
-    if (r == CXUI_Default && down && key == CXUI_KEY_Tab && !(mods & ~CXUI_MOD_Shift) && _cxuiLive(w)) {
+    if (!captured && r == CXUI_Default && down && key == CXUI_KEY_Tab && !(mods & ~CXUI_MOD_Shift) && _cxuiLive(w)) {
         if (_cxuiFocusStep(w, (mods & CXUI_MOD_Shift) != 0))
             r = CXUI_Handled;
     }
     // A text area's Enter is a new line, not the window's default.
     bool line       = (key == CXUI_KEY_Enter || key == CXUI_KEY_PadEnter) && _cxuiTakesEnter(w);
-    CxUiWindow* win = r == CXUI_Default && down && !line && _cxuiLive(w) ? _cxuiWindowOf(w) : NULL;
+    CxUiWindow* win = !captured && r == CXUI_Default && down && !line && _cxuiLive(w) ? _cxuiWindowOf(w) : NULL;
     if (win && _cxuiWindowKey(win, key, mods, repeat))
         r = CXUI_Handled;
     objRelease(&w);
     return r;
+}
+
+_Use_decl_annotations_
+void _cxuiCanvasWarped(CxUiCanvas* cv, CxUiPoint px)
+{
+    trackAt(cv, px);
+}
+
+_Use_decl_annotations_
+void _cxuiCanvasText(CxUiPeer* p, strref text)
+{
+    CxUiCanvas* cv = peerCanvas(p);
+    if (!cv || !(cv->_textInput & CXUI_TEXTINPUT_On) || strEmpty(text))
+        return;
+    CxUiTextEvent ev = { .base.kind = CXUI_EV_Text, .text = text };
+    _cxuiDispatch(CxUiWidget(cv), &ev.base);
+}
+
+// ---- pointer lock ----
+
+// Where a lock taken now begins: where the pointer is, if it is over the canvas or a button holds
+// it there, and otherwise the middle of the canvas
+static CxUiPoint lockPoint(CxUiCanvas* cv)
+{
+    if (cv->_lastValid && (cv->_hover || _cxui.capture == cv))
+        return cv->_lastAt;
+    return (CxUiPoint){ cv->_size.w / 2, cv->_size.h / 2 };
+}
+
+// Takes the lock the canvas wants; false if the platform wouldn't.
+static bool lockTake(CxUiCanvas* cv)
+{
+    _cxuiNativeEnter();
+    uint32 got = _cxui.backend->canvasPointerLock(cv->peer, cv->_lockWant, cv->_lockAt);
+    _cxuiNativeLeave();
+    cv->_lockMode = got;
+    if (got == CXUI_POINTERLOCK_Off)
+        return false;
+    _cxui.lock = cv;
+    // The pointer is over the canvas from now on, wherever it was.
+    if (!cv->_hover) {
+        cv->_hover = true;
+        trackAt(cv, cv->_lockAt);
+        objAcquire(cv);
+        sendMouse(cv, CXUI_MOUSE_Enter, 0, 0, 0, cv->_lockAt, 0, 0);
+        objRelease(&cv);
+    }
+    return true;
+}
+
+// Lets go of the lock, showing the pointer where the lock began; with keep, it is taken again
+// when the window is next active.
+static void lockDrop(CxUiCanvas* cv, bool keep)
+{
+    _cxui.lock    = NULL;
+    cv->_lockMode = CXUI_POINTERLOCK_Off;
+    if (cv->peer) {
+        _cxuiNativeEnter();
+        _cxui.backend->canvasPointerLock(cv->peer, CXUI_POINTERLOCK_Off, cv->_lockAt);
+        _cxuiNativeLeave();
+    }
+    trackAt(cv, cv->_lockAt);
+    if (keep)
+        _cxui.lockIdle = cv;
+    else
+        cv->_lockWant = CXUI_POINTERLOCK_Off;
+}
+
+static void lockEnd(CxUiCanvas* cv)
+{
+    if (_cxui.lock == cv)
+        lockDrop(cv, false);
+    if (_cxui.lockIdle == cv)
+        _cxui.lockIdle = NULL;
+    cv->_lockWant = CXUI_POINTERLOCK_Off;
+    cv->_lockMode = CXUI_POINTERLOCK_Off;
+}
+
+_Use_decl_annotations_
+bool _cxuiPointerLockSet(CxUiCanvas* cv, uint32 mode)
+{
+    if (mode == CXUI_POINTERLOCK_Off) {
+        lockEnd(cv);
+        return true;
+    }
+    CxUiWindow* win = _cxuiWindowOf(CxUiWidget(cv));
+    if (!_cxui.backend->canvasPointerLock || !cv->peer || cv->peer->hidden || !win || !win->_visible)
+        return false;
+    if (_cxui.lock == cv && cv->_lockWant == mode)
+        return true;
+
+    // One canvas at a time
+    if (_cxui.lock && _cxui.lock != cv)
+        lockEnd(_cxui.lock);
+    if (_cxui.lockIdle && _cxui.lockIdle != cv)
+        lockEnd(_cxui.lockIdle);
+    // A change of mode keeps the point where the lock began.
+    if (_cxui.lock != cv && _cxui.lockIdle != cv)
+        cv->_lockAt = lockPoint(cv);
+    cv->_lockWant = mode;
+    if (win->_inactive) {
+        _cxui.lockIdle = cv;
+        return true;
+    }
+    _cxui.lockIdle = NULL;
+    if (lockTake(cv))
+        return true;
+    cv->_lockWant = CXUI_POINTERLOCK_Off;
+    return false;
+}
+
+_Use_decl_annotations_
+void _cxuiCanvasPointerMotion(CxUiPeer* p, float32 dx, float32 dy, uint32 mods)
+{
+    CxUiCanvas* cv = peerCanvas(p);
+    if (!cv || _cxui.lock != cv || (dx == 0 && dy == 0))
+        return;
+    objAcquire(cv);
+    sendMouse(cv, CXUI_MOUSE_Move, 0, mods, 0, cv->_lockAt, dx, dy);
+    objRelease(&cv);
+}
+
+_Use_decl_annotations_
+uint32 _cxuiInputActivated(CxUiWindow* win, bool active)
+{
+    if (active) {
+        CxUiCanvas* cv = _cxui.lockIdle;
+        if (!cv || _cxuiWindowOf(CxUiWidget(cv)) != win)
+            return 0;
+        _cxui.lockIdle = NULL;
+        if (cv->peer && !cv->peer->hidden && lockTake(cv))
+            return CXUI_FOCUS_PointerLock;
+        cv->_lockWant = CXUI_POINTERLOCK_Off;
+        return 0;
+    }
+
+    CxUiCanvas* cv = _cxui.lock;
+    if (!cv || _cxuiWindowOf(CxUiWidget(cv)) != win)
+        return 0;
+    objAcquire(cv);
+    // The button-ups go first, so a handler that lets go of the lock on them ends it for good.
+    _cxuiCaptureCancel(win);
+    uint32 flags = 0;
+    if (_cxui.lock == cv) {
+        lockDrop(cv, true);
+        flags = CXUI_FOCUS_PointerLock;
+    }
+    objRelease(&cv);
+    return flags;
+}
+
+_Use_decl_annotations_
+void _cxuiInputHidden(CxUiWidget* w)
+{
+    CxUiWindow* win = objDynCast(CxUiWindow, w);
+    CxUiCanvas* each[2] = { _cxui.lock, _cxui.lockIdle };
+    for (int32 i = 0; i < 2; i++) {
+        CxUiCanvas* cv = each[i];
+        if (cv && (CxUiWidget(cv) == w || (win && _cxuiWindowOf(CxUiWidget(cv)) == win)))
+            lockEnd(cv);
+    }
+}
+
+void _cxuiInputEndSession(void)
+{
+    if (_cxui.lock)
+        lockEnd(_cxui.lock);
+    if (_cxui.lockIdle)
+        lockEnd(_cxui.lockIdle);
 }
 
 _Use_decl_annotations_
@@ -274,9 +484,12 @@ void _cxuiInputForget(CxUiWidget* w)
         _cxui.wheelAt  = 0;
     }
     if (cv) {
+        if (_cxui.lock == cv || _cxui.lockIdle == cv)
+            lockEnd(cv);
         captureEnd(cv);
-        cv->_buttons = 0;
-        cv->_hover   = false;
+        cv->_buttons   = 0;
+        cv->_hover     = false;
+        cv->_lastValid = false;
     }
 }
 

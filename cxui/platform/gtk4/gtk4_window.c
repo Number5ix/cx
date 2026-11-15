@@ -23,6 +23,14 @@ typedef struct Gtk4Window {
     // The window it belongs to, a weak pointer; a popup's owner stands in for it while it runs
     GtkWindow* owner;
     bool modal;
+    // Whether fullscreen is wanted, on which monitor (held; NULL for the window's own), and the
+    // check that asks again if the compositor dropped the request
+    bool fsWant;
+    GdkMonitor* fsMonitor;
+    guint fsCheck;
+    int32 fsTries;
+    // Asked to stay above other windows, which an X11 window manager is told once it is mapped
+    bool topmost;
 } Gtk4Window;
 
 // ---- theme ----
@@ -152,9 +160,14 @@ static void onSurfaceState(GObject* obj, GParamSpec* pspec, gpointer ud)
     unused_noeval(pspec);
     Gtk4Window* p         = ud;
     GdkToplevelState gst  = gdk_toplevel_get_state(GDK_TOPLEVEL(obj));
-    uint32 state          = (gst & GDK_TOPLEVEL_STATE_MINIMIZED) ? CXUI_WINDOW_Minimized
-                            : (gst & GDK_TOPLEVEL_STATE_MAXIMIZED) ? CXUI_WINDOW_Maximized
-                                                                   : CXUI_WINDOW_Normal;
+    // A compositor that knows nothing of the window can be seen says it is suspended.
+    _cxuiNativeEnter();
+    _cxuiWindowOccluded(&p->base, (gst & GDK_TOPLEVEL_STATE_SUSPENDED) != 0);
+    _cxuiNativeLeave();
+    uint32 state          = (gst & GDK_TOPLEVEL_STATE_MINIMIZED)    ? CXUI_WINDOW_Minimized
+                            : (gst & GDK_TOPLEVEL_STATE_FULLSCREEN) ? CXUI_WINDOW_Fullscreen
+                            : (gst & GDK_TOPLEVEL_STATE_MAXIMIZED)  ? CXUI_WINDOW_Maximized
+                                                                    : CXUI_WINDOW_Normal;
     if (state == p->lastState)
         return;
     p->lastState = state;
@@ -228,6 +241,13 @@ static void onRealize(GtkWidget* widget, gpointer ud)
     g_signal_connect(p->surface, "notify::scale", G_CALLBACK(onSurfaceScale), p);
 }
 
+static void onMap(GtkWidget* widget, gpointer ud)
+{
+    Gtk4Window* p = ud;
+    if (p->topmost)
+        _cxuiGtk4X11SetAbove(GTK_WINDOW(widget), true);
+}
+
 static void onUnrealize(GtkWidget* widget, gpointer ud)
 {
     unused_noeval(widget);
@@ -238,6 +258,70 @@ static void onUnrealize(GtkWidget* widget, gpointer ud)
 }
 
 // ---- operations ----
+
+// X11 only: Wayland has no way for a program to ask.
+bool _cxuiGtk4WindowSetTopmost(CxUiPeer* peer, bool on)
+{
+    Gtk4Window* p = (Gtk4Window*)peer;
+    if (!_cxuiGtk4X11Display())
+        return false;
+    p->topmost = on;
+    if (gtk_widget_get_mapped(GTK_WIDGET(p->win)))
+        _cxuiGtk4X11SetAbove(p->win, on);
+    return true;
+}
+
+int32 _cxuiGtk4WindowMonitor(CxUiPeer* p)
+{
+    return _cxuiGtk4MonitorOf(((Gtk4Window*)p)->win);
+}
+
+static void fsRequest(Gtk4Window* p)
+{
+    if (!p->fsWant)
+        gtk_window_unfullscreen(p->win);
+    else if (p->fsMonitor)
+        gtk_window_fullscreen_on_monitor(p->win, p->fsMonitor);
+    else
+        gtk_window_fullscreen(p->win);
+}
+
+static bool fsIs(Gtk4Window* p)
+{
+    return p->surface && (gdk_toplevel_get_state(GDK_TOPLEVEL(p->surface)) & GDK_TOPLEVEL_STATE_FULLSCREEN) != 0;
+}
+
+// A compositor may drop a request that comes while it is still applying the one before, as
+// headless Weston does; the request is made again until the state follows, a few times at most.
+static gboolean fsVerify(gpointer ud)
+{
+    Gtk4Window* p = ud;
+    if (fsIs(p) == p->fsWant || ++p->fsTries > 8) {
+        p->fsCheck = 0;
+        return G_SOURCE_REMOVE;
+    }
+    fsRequest(p);
+    return G_SOURCE_CONTINUE;
+}
+
+// Both modes are the compositor's own fullscreen, which covers the monitor with nothing over it.
+// The change is reported when the window's state says it happened.
+bool _cxuiGtk4WindowSetFullscreen(CxUiPeer* peer, uint32 mode, const CxUiMonitor* mon)
+{
+    Gtk4Window* p = (Gtk4Window*)peer;
+    GdkMonitor* m = mon ? _cxuiGtk4MonitorFor(mon) : NULL;
+    if (mon && !m)
+        return false;
+    p->fsWant = mode != CXUI_FULLSCREEN_None;
+    GdkMonitor* keep = p->fsWant && m ? g_object_ref(m) : NULL;
+    g_clear_object(&p->fsMonitor);
+    p->fsMonitor = keep;
+    p->fsTries = 0;
+    fsRequest(p);
+    if (!p->fsCheck)
+        p->fsCheck = g_timeout_add(250, fsVerify, p);
+    return true;
+}
 
 // The GtkWindow size that gives a client area of dips. Not the window's natural size: that is at
 // least as wide as the title bar would like, title and all.
@@ -286,6 +370,7 @@ CxUiPeer* _cxuiGtk4WindowCreate(CxUiWindow* w)
     gtk_widget_add_controller(GTK_WIDGET(p->win), keys);
     g_signal_connect(p->win, "notify::is-active", G_CALLBACK(onActive), p);
     g_signal_connect(p->win, "realize", G_CALLBACK(onRealize), p);
+    g_signal_connect(p->win, "map", G_CALLBACK(onMap), p);
     g_signal_connect(p->win, "unrealize", G_CALLBACK(onUnrealize), p);
 
     gtk4ApplyTheme(w, w->_dark);
@@ -560,6 +645,9 @@ void _cxuiGtk4PeerDestroy(CxUiPeer* peer)
         return;
     }
     Gtk4Window* p = (Gtk4Window*)peer;
+    if (p->fsCheck)
+        g_source_remove(p->fsCheck);
+    g_clear_object(&p->fsMonitor);
     if (p->surface)
         g_signal_handlers_disconnect_by_data(p->surface, p);
     _cxuiGtk4RootDetach(p->root);

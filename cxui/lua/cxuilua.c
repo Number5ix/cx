@@ -206,6 +206,7 @@ EV_TRAMP(Expand)
 EV_TRAMP(Check)
 EV_TRAMP(Edit)
 EV_TRAMP(Surface)
+EV_TRAMP(Text)
 
 static CxUiResult trampPaint(stvlist* cvars, CxUiPaintEvent* ev);
 
@@ -227,6 +228,7 @@ static const EvSlot evSlots[] = {
     { "oncheck", CXUI_EV_Check },
     { "onedit", CXUI_EV_Edit },
     { "onsurface", CXUI_EV_Surface },
+    { "ontext", CXUI_EV_Text },
 };
 
 static const EvSlot* slotFor(const char* key)
@@ -286,6 +288,8 @@ static void pushEvent(lua_State* L, CxUiEvent* ev)
         setInt(L, "flags", m->flags);
         setInt(L, "x", m->x);
         setInt(L, "y", m->y);
+        setNum(L, "dx", m->dx);
+        setNum(L, "dy", m->dy);
         break;
     }
     case CXUI_EV_Wheel: {
@@ -299,6 +303,7 @@ static void pushEvent(lua_State* L, CxUiEvent* ev)
     }
     case CXUI_EV_Focus:
         setBool(L, "gained", ((CxUiFocusEvent*)ev)->gained);
+        setInt(L, "flags", ((CxUiFocusEvent*)ev)->flags);
         break;
     case CXUI_EV_Resize:
         setInt(L, "w", ((CxUiResizeEvent*)ev)->size.w);
@@ -309,6 +314,7 @@ static void pushEvent(lua_State* L, CxUiEvent* ev)
         break;
     case CXUI_EV_ShowState:
         setInt(L, "state", ((CxUiShowStateEvent*)ev)->state);
+        setBool(L, "occluded", ((CxUiShowStateEvent*)ev)->occluded);
         break;
     case CXUI_EV_Move:
         setInt(L, "x", ((CxUiMoveEvent*)ev)->pos.x);
@@ -360,6 +366,12 @@ static void pushEvent(lua_State* L, CxUiEvent* ev)
     case CXUI_EV_Surface:
         setBool(L, "available", ((CxUiSurfaceEvent*)ev)->available);
         break;
+    case CXUI_EV_Text: {
+        strref t = ((CxUiTextEvent*)ev)->text;
+        lua_pushlstring(L, strC(t), strLen(t));
+        lua_setfield(L, -2, "text");
+        break;
+    }
     default:
         break;
     }
@@ -411,6 +423,7 @@ static closure handlerFor(lua_State* L, CxUiEventKind kind, int fn)
     case CXUI_EV_Check:        cls = closureCreateAs(CxUiCheckFn, trampCheck, ref); break;
     case CXUI_EV_Edit:         cls = closureCreateAs(CxUiEditFn, trampEdit, ref); break;
     case CXUI_EV_Surface:      cls = closureCreateAs(CxUiSurfaceFn, trampSurface, ref); break;
+    case CXUI_EV_Text:         cls = closureCreateAs(CxUiTextFn, trampText, ref); break;
     default:                   cls = closureCreateAs(CxUiScrollFn, trampScroll, ref); break;
     }
     closureSetDestroy(cls, handlerGone);
@@ -1354,6 +1367,53 @@ static int mFocused(lua_State* L)
     return 1;
 }
 
+// w:setfullscreen(mode [, monitor]): the monitor is a table from cxui.monitors()
+static int mSetFullscreen(lua_State* L)
+{
+    CxUiWindow* w   = checkWindow(L, 1);
+    uint32 mode     = (uint32)luaL_checkinteger(L, 2);
+    CxUiMonitor mon = { 0 };
+    bool given      = !lua_isnoneornil(L, 3);
+    if (given) {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        mon.bounds = (CxUiRect){ (int32)optInt(L, 3, "x", 0), (int32)optInt(L, 3, "y", 0), (int32)optInt(L, 3, "w", 0),
+                                 (int32)optInt(L, 3, "h", 0) };
+        optString(L, 3, "id", &mon.id);
+    }
+    bool ok = cxuiWindowSetFullscreen(w, mode, given ? &mon : NULL);
+    cxuiMonitorDestroy(&mon);
+    return lua_pushboolean(L, ok), 1;
+}
+
+static int mSetTopmost(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiWindowSetTopmost(checkWindow(L, 1), lua_toboolean(L, 2))), 1;
+}
+
+static int mTopmost(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiWindowTopmost(checkWindow(L, 1))), 1;
+}
+
+static int mOccluded(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiWindowOccluded(checkWindow(L, 1))), 1;
+}
+
+// The index into cxui.monitors(), from 1, or nil
+static int mWindowMonitor(lua_State* L)
+{
+    int32 i = cxuiWindowMonitor(checkWindow(L, 1));
+    if (i < 0)
+        return lua_pushnil(L), 1;
+    return lua_pushinteger(L, i + 1), 1;
+}
+
+static int mFullscreen(lua_State* L)
+{
+    return lua_pushinteger(L, cxuiWindowFullscreen(checkWindow(L, 1))), 1;
+}
+
 static const luaL_Reg windowMethods[] = {
     { "show", mShow },
     { "hide", mHide },
@@ -1370,6 +1430,12 @@ static const luaL_Reg windowMethods[] = {
     { "position", mPosition },
     { "movenear", mMoveNear },
     { "focused", mFocused },
+    { "setfullscreen", mSetFullscreen },
+    { "fullscreen", mFullscreen },
+    { "monitor", mWindowMonitor },
+    { "settopmost", mSetTopmost },
+    { "topmost", mTopmost },
+    { "occluded", mOccluded },
     { NULL, NULL },
 };
 
@@ -1404,10 +1470,60 @@ static int mSetCursor(lua_State* L)
     return 0;
 }
 
+// cv:setcursorimage(cursor or nil)
+static int mSetCursorImage(lua_State* L)
+{
+    CxUiCursor* cur = lua_isnoneornil(L, 2) ? NULL : (CxUiCursor*)cxluaCheckObject(L, 2, &CxUiCursor_clsinfo);
+    cxuiCanvasSetCursorImage(checkCanvas(L, 1), cur);
+    return 0;
+}
+
+static int mWarpPointer(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiCanvasWarpPointer(checkCanvas(L, 1), (int32)luaL_checkinteger(L, 2),
+                                                    (int32)luaL_checkinteger(L, 3))),
+           1;
+}
+
+static int mSetTextInput(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiCanvasSetTextInput(checkCanvas(L, 1), (flags_t)luaL_checkinteger(L, 2))), 1;
+}
+
+static int mSetTextCaret(lua_State* L)
+{
+    cxuiCanvasSetTextCaret(checkCanvas(L, 1), (int32)luaL_checkinteger(L, 2), (int32)luaL_checkinteger(L, 3),
+                           (int32)luaL_checkinteger(L, 4), (int32)luaL_checkinteger(L, 5));
+    return 0;
+}
+
+static int mSetKeyCapture(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiCanvasSetKeyCapture(checkCanvas(L, 1), (flags_t)luaL_checkinteger(L, 2))), 1;
+}
+
+static int mSetPointerLock(lua_State* L)
+{
+    return lua_pushboolean(L, cxuiCanvasSetPointerLock(checkCanvas(L, 1), (uint32)luaL_checkinteger(L, 2))), 1;
+}
+
+static int mPointerLockMode(lua_State* L)
+{
+    return lua_pushinteger(L, cxuiCanvasPointerLockMode(checkCanvas(L, 1))), 1;
+}
+
+// Shared by canvases and render views
+#define CANVAS_INPUT_METHODS                                                                   \
+    { "settextinput", mSetTextInput }, { "settextcaret", mSetTextCaret },                    \
+        { "setkeycapture", mSetKeyCapture }, { "setpointerlock", mSetPointerLock },          \
+        { "pointerlockmode", mPointerLockMode }, { "setcursorimage", mSetCursorImage },        \
+        { "warppointer", mWarpPointer }
+
 static const luaL_Reg canvasMethods[] = {
     { "invalidate", mInvalidate },
     { "size", mCanvasSize },
     { "setcursor", mSetCursor },
+    CANVAS_INPUT_METHODS,
     { NULL, NULL },
 };
 
@@ -1433,6 +1549,7 @@ static const luaL_Reg renderViewMethods[] = {
     { "invalidate", mInvalidate },
     { "size", mCanvasSize },
     { "setcursor", mSetCursor },
+    CANVAS_INPUT_METHODS,
     { "surface", mRenderViewSurface },
     { NULL, NULL },
 };
@@ -2008,6 +2125,19 @@ static int newImage(lua_State* L)
     return 1;
 }
 
+// cxui.cursor{ image = img, x = 0, y = 0 }: a mouse cursor from an image, clicking at x, y
+static int newCursor(lua_State* L)
+{
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_getfield(L, 1, "image");
+    CxUiImage* img = checkImage(L, -1);
+    CxUiCursor* c  = cxuiCursorCreate(img, (int32)optInt(L, 1, "x", 0), (int32)optInt(L, 1, "y", 0));
+    lua_pop(L, 1);
+    cxluaPushObject(L, objInstBase(c));
+    objRelease(&c);
+    return 1;
+}
+
 // img:sub(x, y, w, h): a part of the image, sharing its pixels
 static int mImageSub(lua_State* L)
 {
@@ -2032,6 +2162,45 @@ static const luaL_Reg imageMethods[] = {
 };
 
 // ---- functions ----
+
+// cxui.monitors(): a list of tables, the primary first: x, y, w, h, workarea (x, y, w, h), scale,
+// primary, id, name, refreshhz and safearea (left, top, right, bottom)
+static int fMonitors(lua_State* L)
+{
+    sa_CxUiMonitor mons = { 0 };
+    int32 n             = cxuiMonitors(&mons);
+    lua_createtable(L, n, 0);
+    for (int32 i = 0; i < n; i++) {
+        CxUiMonitor* m = &mons.a[i];
+        lua_newtable(L);
+        setInt(L, "x", m->bounds.x);
+        setInt(L, "y", m->bounds.y);
+        setInt(L, "w", m->bounds.w);
+        setInt(L, "h", m->bounds.h);
+        lua_newtable(L);
+        setInt(L, "x", m->workArea.x);
+        setInt(L, "y", m->workArea.y);
+        setInt(L, "w", m->workArea.w);
+        setInt(L, "h", m->workArea.h);
+        lua_setfield(L, -2, "workarea");
+        lua_newtable(L);
+        setInt(L, "left", m->safeArea.left);
+        setInt(L, "top", m->safeArea.top);
+        setInt(L, "right", m->safeArea.right);
+        setInt(L, "bottom", m->safeArea.bottom);
+        lua_setfield(L, -2, "safearea");
+        setNum(L, "scale", m->scale);
+        setNum(L, "refreshhz", m->refreshHz);
+        setBool(L, "primary", (m->flags & CXUI_MON_Primary) != 0);
+        lua_pushlstring(L, strC(m->id), strLen(m->id));
+        lua_setfield(L, -2, "id");
+        lua_pushlstring(L, strC(m->name), strLen(m->name));
+        lua_setfield(L, -2, "name");
+        lua_rawseti(L, -2, i + 1);
+    }
+    saDestroy(&mons);
+    return 1;
+}
 
 // cxui.messagebox{ parent, title, text, kind, buttons, custom = { ... }, default, cancel }
 static int fMessageBox(lua_State* L)
@@ -2887,6 +3056,8 @@ static const luaL_Reg functions[] = {
     { "timer", newTimer },
     { "font", newFont },
     { "image", newImage },
+    { "cursor", newCursor },
+    { "monitors", fMonitors },
     { "messagebox", fMessageBox },
     { "filedialog", fFileDialog },
     { "colordialog", fColorDialog },
@@ -2945,6 +3116,14 @@ static void constants(lua_State* L)
                                             { "doubleclick", CXUI_MOUSE_DoubleClick }, { "move", CXUI_MOUSE_Move },
                                             { "enter", CXUI_MOUSE_Enter }, { "leave", CXUI_MOUSE_Leave },
                                             { "capturelost", CXUI_MOUSE_CaptureLost }, { NULL, 0 } });
+    constTable(L, "FOCUS", (const Const[]){ { "pointerlock", CXUI_FOCUS_PointerLock }, { NULL, 0 } });
+    constTable(L, "TEXTINPUT", (const Const[]){ { "on", CXUI_TEXTINPUT_On }, { NULL, 0 } });
+    constTable(L, "KEYCAPTURE", (const Const[]){ { "on", CXUI_KEYCAPTURE_On }, { "systemkey", CXUI_KEYCAPTURE_SystemKey },
+                                                 { NULL, 0 } });
+    constTable(L, "POINTERLOCK", (const Const[]){ { "off", CXUI_POINTERLOCK_Off }, { "warp", CXUI_POINTERLOCK_Warp },
+                                                  { "raw", CXUI_POINTERLOCK_Raw }, { NULL, 0 } });
+    constTable(L, "FULLSCREEN", (const Const[]){ { "none", CXUI_FULLSCREEN_None }, { "system", CXUI_FULLSCREEN_System },
+                                                 { "monitor", CXUI_FULLSCREEN_Monitor }, { NULL, 0 } });
     constTable(L, "ALIGN", (const Const[]){ { "default", CXUI_ALIGN_Default }, { "start", CXUI_ALIGN_Start },
                                             { "center", CXUI_ALIGN_Center }, { "end", CXUI_ALIGN_End },
                                             { "fill", CXUI_ALIGN_Fill }, { NULL, 0 } });
@@ -2967,7 +3146,8 @@ static void constants(lua_State* L)
                                            { "start", CXUI_SIZE_Start }, { NULL, 0 } });
     constTable(L, "WIN", (const Const[]){ { "shrink", CXUI_WINDOW_Shrink }, { "borderless", CXUI_WINDOW_Borderless },
                                           { "normal", CXUI_WINDOW_Normal }, { "minimized", CXUI_WINDOW_Minimized },
-                                          { "maximized", CXUI_WINDOW_Maximized }, { NULL, 0 } });
+                                          { "maximized", CXUI_WINDOW_Maximized },
+                                          { "fullscreen", CXUI_WINDOW_Fullscreen }, { NULL, 0 } });
     constTable(L, "THEME", (const Const[]){ { "system", CXUI_Theme_System }, { "light", CXUI_Theme_Light },
                                             { "dark", CXUI_Theme_Dark }, { NULL, 0 } });
     constTable(L, "CHECK", (const Const[]){ { "off", CXUI_CHECK_Off }, { "on", CXUI_CHECK_On }, { "mixed", CXUI_CHECK_Mixed },
@@ -3048,6 +3228,7 @@ int luaopen_cxui(lua_State* L)
     cxluaRegisterClass(L, &CxUiTimer_clsinfo, NULL, timerMethods);
     cxluaRegisterClass(L, &CxUiFont_clsinfo, NULL, fontMethods);
     cxluaRegisterClass(L, &CxUiImage_clsinfo, NULL, imageMethods);
+    cxluaRegisterClass(L, &CxUiCursor_clsinfo, NULL, NULL);
     cxluaRegisterClass(L, &CxUiGrid_clsinfo, NULL, gridMethods);
     cxluaRegisterClass(L, &CxUiListStore_clsinfo, NULL, listStoreMethods);
     cxluaRegisterClass(L, &CxUiTreeStore_clsinfo, NULL, treeStoreMethods);

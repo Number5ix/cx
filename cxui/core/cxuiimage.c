@@ -83,6 +83,25 @@ void* _cxuiImageNative(CxUiImage* root, const CxUiDrawOps* ops)
     return root->_cache;
 }
 
+_Use_decl_annotations_
+const uint8* _cxuiImageRows(CxUiImage* img, int32* stride)
+{
+    CxUiImage* root = img->_root ? img->_root : img;
+    *stride         = root->_rect.w * 4;
+    return (const uint8*)root->_pixels + (size_t)img->_rect.y * *stride + (size_t)img->_rect.x * 4;
+}
+
+_objfactory_guaranteed CxUiCursor* CxUiCursor_create(_In_ CxUiImage* img, int32 hotX, int32 hotY)
+{
+    CxUiCursor* self;
+    self = objInstCreate(CxUiCursor);
+    self->_image = objAcquire(img);
+    CxUiSize sz  = cxuiImageSize(img);
+    self->_hot   = (CxUiPoint){ clamp(hotX, 0, sz.w - 1), clamp(hotY, 0, sz.h - 1) };
+    objInstInit(self);
+    return self;
+}
+
 void CxUiImage_destroy(_In_ CxUiImage* self)
 {
     // An engine's copy may be freed on any thread.
@@ -91,6 +110,13 @@ void CxUiImage_destroy(_In_ CxUiImage* self)
     xaFree(self->_pixels);
     // Autogen begins -----
     objRelease(&self->_root);
+    // Autogen ends -------
+}
+
+void CxUiCursor_destroy(_In_ CxUiCursor* self)
+{
+    // Autogen begins -----
+    objRelease(&self->_image);
     // Autogen ends -------
 }
 

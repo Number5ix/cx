@@ -40,6 +40,25 @@ CX_C_BEGIN
 ///   later ones count as handled even when ignored, and if not, later ones go straight to the
 ///   scroll box. So return CXUI_Default from a canvas that can't scroll the way the wheel turned,
 ///   and CXUI_Handled whenever it can.
+/// - **Text:** a canvas that draws its own text fields turns on text input
+///   (cxuiCanvasSetTextInput()) to get what the user types as text events (cxuiOnText()), with
+///   dead keys and the system's input methods applied. The key event comes first, then the text.
+///   Text is only ever committed text: while an input method is composing, the platform shows the
+///   composition in a window of its own, placed beside the caret (cxuiCanvasSetTextCaret()), and
+///   the keys that edit it may not come as key events.
+/// - **Taking every key:** with key capture on (cxuiCanvasSetKeyCapture()), the focused canvas gets
+///   the keys the window would otherwise use itself, such as Tab, Enter, Esc, F10 and Command
+///   shortcuts, and every key-up. Switching programs, and what the system keeps for itself, still
+///   work; so do Alt+F4 and Command+Q. No key-ups come for keys still held when focus leaves, so
+///   treat losing focus as every key being released.
+/// - **Pointer lock:** for mouse look and dragging without limits, cxuiCanvasSetPointerLock() hides
+///   the pointer and keeps it where the lock began, while mouse events carry how far the mouse moved
+///   (`dx`, `dy`). It works together with a held button: lock once a drag starts, unlock on the
+///   button-up, and the pointer shows again where the drag began. The lock is let go while the
+///   window is inactive and taken again when it is active, and the window's focus events say so
+///   with CXUI_FOCUS_PointerLock; it ends for good when the canvas or its window is hidden. Some
+///   remote control programs on macOS move the pointer back themselves: `dx` and `dy` still follow
+///   the mouse there, but the pointer isn't held in place.
 ///
 /// @code
 ///   CxUiCanvas* cv = cxuiCanvasCreate(NULL);
@@ -73,6 +92,32 @@ enum CxUiCursors {
     CXUI_CURSOR_NotAllowed,
     CXUI_CURSOR_None,         ///< Hidden
     CXUI_CURSOR_Count
+};
+
+/// Flags for cxuiCanvasSetTextInput()
+enum CxUiTextInputFlags {
+    /// Raise text events for what the user types
+    CXUI_TEXTINPUT_On = 0x0001,
+};
+
+/// Flags for cxuiCanvasSetKeyCapture()
+enum CxUiKeyCaptureFlags {
+    /// The focused canvas gets every key before the window and the system's shortcuts
+    CXUI_KEYCAPTURE_On = 0x0001,
+    /// With CXUI_KEYCAPTURE_On, the Windows key comes to the canvas as a modifier instead of
+    /// opening the Start menu. Command always reaches the canvas on macOS; not supported on Linux.
+    CXUI_KEYCAPTURE_SystemKey = 0x0002,
+};
+
+/// Pointer lock modes for cxuiCanvasSetPointerLock()
+enum CxUiPointerLocks {
+    CXUI_POINTERLOCK_Off = 0,
+    /// The pointer is hidden and put back where the lock began as it moves; works in remote
+    /// sessions
+    CXUI_POINTERLOCK_Warp,
+    /// The platform's relative motion, unaccelerated where it offers that; the pointer doesn't
+    /// move. In a remote session, where relative motion is missing or wrong, this works as Warp.
+    CXUI_POINTERLOCK_Raw,
 };
 
 /// Units for a canvas's drawing, mouse positions and invalidated areas

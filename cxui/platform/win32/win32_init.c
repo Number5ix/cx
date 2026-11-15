@@ -187,6 +187,9 @@ const CxUiBackend _cxuiWin32Backend = {
     .windowBeginModal  = _cxuiWin32WindowBeginModal,
     .windowEndModal    = _cxuiWin32WindowEndModal,
     .windowSetOwner    = _cxuiWin32WindowSetOwner,
+    .windowSetFullscreen = _cxuiWin32WindowSetFullscreen,
+    .windowMonitor       = _cxuiWin32WindowMonitorOf,
+    .windowSetTopmost    = _cxuiWin32WindowSetTopmost,
     .windowMoveNear    = _cxuiWin32WindowMoveNear,
     .windowSetEnabled  = _cxuiWin32WindowSetEnabled,
 
@@ -202,6 +205,12 @@ const CxUiBackend _cxuiWin32Backend = {
     .windowFocusCues  = _cxuiWin32WindowFocusCues,
     .peerSetTip       = _cxuiWin32PeerSetTip,
     .canvasSetCursor  = _cxuiWin32CanvasSetCursor,
+    .canvasSetCursorImage = _cxuiWin32CanvasSetCursorImage,
+    .canvasWarpPointer    = _cxuiWin32CanvasWarpPointer,
+    .canvasSetTextInput  = _cxuiWin32CanvasSetTextInput,
+    .canvasSetTextCaret  = _cxuiWin32CanvasSetTextCaret,
+    .canvasSetKeyCapture = _cxuiWin32CanvasSetKeyCapture,
+    .canvasPointerLock   = _cxuiWin32CanvasPointerLock,
     .doubleClick      = _cxuiWin32DoubleClick,
 
     .panelCreate         = _cxuiWin32PanelCreate,
@@ -316,6 +325,7 @@ const CxUiBackend _cxuiWin32Backend = {
     .testMenuChoose       = _cxuiWin32TestMenuChoose,
     .testWindowMenu       = _cxuiWin32TestWindowMenu,
     .testWindowActive     = _cxuiWin32TestWindowActive,
+    .testTopmost = _cxuiWin32TestTopmost,
     .testClipboardForeign = _cxuiWin32TestClipboardForeign,
     .testClipboardRaw     = _cxuiWin32TestClipboardRaw,
 };

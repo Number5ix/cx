@@ -20,6 +20,16 @@ typedef struct AppKitWindow {
     // it is a child window of that one while both are shown.
     struct AppKitWindow* owner;
     struct AppKitWindow* modalOwner;
+    // Fullscreen: the CxUiFullscreen mode wanted and its display (0 for the window's own); AppKit
+    // entering or leaving its own fullscreen, and whether cxui asked it to
+    uint32 fsWant;
+    CGDirectDisplayID fsDisplay;
+    bool fsMoving;
+    bool fsDriving;
+    // A Monitor window's frame and style to go back to
+    bool monitorMode;
+    NSWindowStyleMask monStyle;
+    NSRect monFrame;
 } AppKitWindow;
 
 @interface CxUiNSWindow : NSWindow
@@ -98,10 +108,17 @@ static CxUiPoint topLeftOf(NSWindow* w)
     return (CxUiPoint){ (int32)lround(f.origin.x), (int32)lround(primaryHeight() - (f.origin.y + f.size.height)) };
 }
 
-// Full screen counts as maximized: it is what the green title bar button does.
+// AppKit's own fullscreen, which the green title bar button enters
 static bool fullScreen(NSWindow* w)
 {
     return (w.styleMask & NSWindowStyleMaskFullScreen) != 0;
+}
+
+// cxui's fullscreen without a frame, covering a monitor
+static bool monitorMode(NSWindow* w)
+{
+    AppKitWindow* p = (AppKitWindow*)_cxuiAppKitWindowPeerOf(w);
+    return p && p->monitorMode;
 }
 
 // The rectangle in cxui's screen units: points, from the top left of the primary screen
@@ -152,15 +169,16 @@ static void saveNormal(AppKitWindow* p)
 
 static uint32 stateOf(NSWindow* w)
 {
-    return w.miniaturized                 ? CXUI_WINDOW_Minimized
-           : fullScreen(w) || w.zoomed    ? CXUI_WINDOW_Maximized
-                                          : CXUI_WINDOW_Normal;
+    return w.miniaturized                       ? CXUI_WINDOW_Minimized
+           : fullScreen(w) || monitorMode(w)    ? CXUI_WINDOW_Fullscreen
+           : w.zoomed                           ? CXUI_WINDOW_Maximized
+                                                : CXUI_WINDOW_Normal;
 }
 
-// Zoomed or full screen, where the frame isn't the normal one
+// Zoomed or fullscreen, where the frame isn't the normal one
 static bool heldFrame(NSWindow* w)
 {
-    return w.zoomed || fullScreen(w);
+    return w.zoomed || fullScreen(w) || monitorMode(w);
 }
 
 // Back to the normal frame; a full screen window goes back on its own once out of full screen.
@@ -222,6 +240,181 @@ static void reportChanges(AppKitWindow* p)
     _cxuiNativeLeave();
 }
 
+// ---- fullscreen ----
+
+static CGDirectDisplayID displayOf(NSScreen* s)
+{
+    return [s.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+}
+
+static NSScreen* screenWithDisplay(CGDirectDisplayID d)
+{
+    for (NSScreen* s in NSScreen.screens) {
+        if (displayOf(s) == d)
+            return s;
+    }
+    return nil;
+}
+
+// The screen a monitor from cxuiMonitors() describes
+static NSScreen* screenFor(const CxUiMonitor* m)
+{
+    for (NSScreen* s in NSScreen.screens) {
+        CxUiRect r = topLeftRect(s.frame);
+        if (r.x == m->bounds.x && r.y == m->bounds.y && r.w == m->bounds.w && r.h == m->bounds.h)
+            return s;
+    }
+    return nil;
+}
+
+static uint32 fsNow(AppKitWindow* p)
+{
+    NSWindow* win = nsWindow(&p->base);
+    return p->monitorMode ? CXUI_FULLSCREEN_Monitor : fullScreen(win) ? CXUI_FULLSCREEN_System : CXUI_FULLSCREEN_None;
+}
+
+// The Dock and menu bar are hidden while a Monitor window is the key window. AppKit applies the
+// options only while the program is active.
+static bool hidBars;
+
+static void presentation(AppKitWindow* p)
+{
+    bool hide = p->monitorMode && nsWindow(&p->base).isKeyWindow;
+    if (hide == hidBars)
+        return;
+    hidBars                  = hide;
+    NSApp.presentationOptions = hide ? NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar
+                                     : NSApplicationPresentationDefault;
+}
+
+static NSScreen* fsScreen(AppKitWindow* p)
+{
+    NSScreen* s = p->fsDisplay ? screenWithDisplay(p->fsDisplay) : nil;
+    if (!s)
+        s = nsWindow(&p->base).screen;
+    return s ? s : NSScreen.mainScreen;
+}
+
+static void monitorEnter(AppKitWindow* p)
+{
+    NSWindow* win = nsWindow(&p->base);
+    if (!heldFrame(win))
+        saveNormal(p);
+    p->monStyle    = win.styleMask;
+    p->monFrame    = win.frame;
+    p->monitorMode = true;
+    win.styleMask  = NSWindowStyleMaskBorderless | NSWindowStyleMaskMiniaturizable;
+    [win setFrame:fsScreen(p).frame display:YES];
+    presentation(p);
+}
+
+static void monitorLeave(AppKitWindow* p)
+{
+    if (!p->monitorMode)
+        return;
+    NSWindow* win  = nsWindow(&p->base);
+    p->monitorMode = false;
+    win.styleMask  = p->monStyle;
+    [win setFrame:p->monFrame display:YES];
+    presentation(p);
+}
+
+// Moves toward the fullscreen mode wanted. AppKit's own fullscreen comes and goes in an animation,
+// after which this runs again; the caller reports the change.
+static void fsApply(AppKitWindow* p)
+{
+    NSWindow* win = nsWindow(&p->base);
+    if (p->fsMoving)
+        return;
+    uint32 now      = fsNow(p);
+    NSScreen* want  = p->fsDisplay ? screenWithDisplay(p->fsDisplay) : nil;
+    bool onScreen   = !want || win.screen == want;
+    if (now == p->fsWant && (now == CXUI_FULLSCREEN_None || onScreen))
+        return;
+    if (now == CXUI_FULLSCREEN_System) {
+        p->fsMoving = p->fsDriving = true;
+        [win toggleFullScreen:nil];
+        return;
+    }
+    monitorLeave(p);
+    if (p->fsWant == CXUI_FULLSCREEN_Monitor) {
+        monitorEnter(p);
+    } else if (p->fsWant == CXUI_FULLSCREEN_System) {
+        // AppKit makes a window fullscreen on the screen it is on.
+        if (want && win.screen != want) {
+            NSRect area = want.visibleFrame, f = win.frame;
+            f.origin    = NSMakePoint(NSMidX(area) - f.size.width / 2, NSMidY(area) - f.size.height / 2);
+            [win setFrame:f display:YES];
+        }
+        win.collectionBehavior |= NSWindowCollectionBehaviorFullScreenPrimary;
+        p->fsMoving = p->fsDriving = true;
+        [win toggleFullScreen:nil];
+    }
+}
+
+// AppKit started entering or leaving its fullscreen; when the user did that, it is what is wanted.
+static void fsWillMove(AppKitWindow* p, bool entering)
+{
+    if (!p->fsDriving)
+        p->fsWant = entering ? CXUI_FULLSCREEN_System : CXUI_FULLSCREEN_None;
+    p->fsMoving = true;
+}
+
+// AppKit finished, or failed; what is still wanted goes on, and the state is reported even if it
+// didn't change, since cxui expected it to.
+static void fsMoved(AppKitWindow* p, bool failed)
+{
+    p->fsMoving  = false;
+    p->fsDriving = false;
+    if (failed) {
+        p->fsWant    = fsNow(p);
+        p->lastState = (uint32)-1;
+    }
+    fsApply(p);
+    reportChanges(p);
+}
+
+// A floating window stays above other programs' ordinary windows.
+bool _cxuiAppKitWindowSetTopmost(CxUiPeer* p, bool on)
+{
+    nsWindow(p).level = on ? NSFloatingWindowLevel : NSNormalWindowLevel;
+    return true;
+}
+
+bool _cxuiAppKitTestTopmost(CxUiPeer* p, bool* topmost)
+{
+    *topmost = nsWindow(p).level > NSNormalWindowLevel;
+    return true;
+}
+
+int32 _cxuiAppKitWindowMonitorOf(CxUiPeer* p)
+{
+    return _cxuiAppKitWindowMonitor(nsWindow(p));
+}
+
+bool _cxuiAppKitWindowSetFullscreen(CxUiPeer* peer, uint32 mode, const CxUiMonitor* mon)
+{
+    AppKitWindow* p  = (AppKitWindow*)peer;
+    NSScreen* screen = mon ? screenFor(mon) : nil;
+    if (mon && !screen)
+        return false;
+    p->fsWant    = mode;
+    p->fsDisplay = screen ? displayOf(screen) : 0;
+    fsApply(p);
+    reportChanges(p);
+    return true;
+}
+
+// A Monitor window covers its screen whatever happens to the screens.
+void _cxuiAppKitMonitorsReframe(void)
+{
+    for (NSWindow* each in NSApp.windows) {
+        AppKitWindow* p = (AppKitWindow*)_cxuiAppKitWindowPeerOf(each);
+        if (p && p->monitorMode)
+            [each setFrame:fsScreen(p).frame display:YES];
+    }
+}
+
 @interface CxUiWindowDelegate : NSObject <NSWindowDelegate> {
   @public
     AppKitWindow* peer;   // NULL once the peer is destroyed
@@ -273,8 +466,35 @@ static void reportChanges(AppKitWindow* p)
 
 - (void)windowWillEnterFullScreen:(NSNotification*)n
 {
-    if (peer && !nsWindow(&peer->base).zoomed)
+    if (!peer)
+        return;
+    if (!nsWindow(&peer->base).zoomed)
         saveNormal(peer);
+    fsWillMove(peer, true);
+}
+
+- (void)windowWillExitFullScreen:(NSNotification*)n
+{
+    if (peer)
+        fsWillMove(peer, false);
+}
+
+- (void)windowDidFailToEnterFullScreen:(NSWindow*)w
+{
+    if (peer)
+        fsMoved(peer, true);
+}
+
+- (void)windowDidFailToExitFullScreen:(NSWindow*)w
+{
+    if (peer)
+        fsMoved(peer, true);
+}
+
+- (void)windowDidChangeScreen:(NSNotification*)n
+{
+    if (peer && peer->monitorMode)
+        _cxuiAppKitMonitorsReframe();
 }
 
 - (void)windowDidMiniaturize:(NSNotification*)n
@@ -292,19 +512,30 @@ static void reportChanges(AppKitWindow* p)
 - (void)windowDidEnterFullScreen:(NSNotification*)n
 {
     if (peer)
-        reportChanges(peer);
+        fsMoved(peer, false);
 }
 
 - (void)windowDidExitFullScreen:(NSNotification*)n
 {
     if (peer)
-        reportChanges(peer);
+        fsMoved(peer, false);
+}
+
+- (void)windowDidChangeOcclusionState:(NSNotification*)n
+{
+    if (!peer)
+        return;
+    bool hidden = !(nsWindow(&peer->base).occlusionState & NSWindowOcclusionStateVisible);
+    _cxuiNativeEnter();
+    _cxuiWindowOccluded(&peer->base, hidden);
+    _cxuiNativeLeave();
 }
 
 - (void)windowDidBecomeKey:(NSNotification*)n
 {
     _cxuiAppKitMenuRefresh();
     if (peer) {
+        presentation(peer);
         _cxuiNativeEnter();
         _cxuiWindowActivated(&peer->base, true);
         _cxuiNativeLeave();
@@ -314,6 +545,7 @@ static void reportChanges(AppKitWindow* p)
 - (void)windowDidResignKey:(NSNotification*)n
 {
     if (peer) {
+        presentation(peer);
         _cxuiNativeEnter();
         _cxuiWindowActivated(&peer->base, false);
         _cxuiNativeLeave();
@@ -722,6 +954,10 @@ void _cxuiAppKitPeerDestroy(CxUiPeer* peer)
     p->owner      = NULL;
     p->modalOwner = NULL;
     ownerAttach(p, false);
+    if (p->monitorMode) {
+        p->monitorMode = false;
+        presentation(p);
+    }
     NSWindow* win         = CFBridgingRelease(p->win);
     CxUiWindowDelegate* d = CFBridgingRelease(p->delegate);
     d->peer               = NULL;

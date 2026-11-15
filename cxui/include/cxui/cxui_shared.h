@@ -18,6 +18,7 @@ typedef struct CxUiWindow CxUiWindow;
 typedef struct CxUiCanvas CxUiCanvas;
 typedef struct CxUiFont CxUiFont;
 typedef struct CxUiImage CxUiImage;
+typedef struct CxUiCursor CxUiCursor;
 typedef struct CxUiDraw CxUiDraw;
 typedef struct CxUiDGroup CxUiDGroup;
 typedef struct CxUiZBox CxUiZBox;
@@ -83,7 +84,7 @@ typedef enum CxUiEventKind {
     CXUI_EV_Paint,        ///< A canvas needs part of itself drawn
     CXUI_EV_Resize,       ///< A canvas, render view or window changed size
     CXUI_EV_Close,        ///< Something asked to close a window
-    CXUI_EV_ShowState,    ///< A window was minimized, maximized or restored
+    CXUI_EV_ShowState,    ///< A window was minimized, maximized, made fullscreen or restored
     CXUI_EV_Move,         ///< A window moved
     CXUI_EV_DpiChanged,   ///< A window's scale changed, for example on moving to another monitor
     CXUI_EV_ThemeChanged, ///< A window changed between light and dark
@@ -94,6 +95,7 @@ typedef enum CxUiEventKind {
     CXUI_EV_Check,        ///< The user is checking or clearing a grid cell's check box
     CXUI_EV_Edit,         ///< A grid cell's editor opened, or closed with or without a change
     CXUI_EV_Surface,      ///< A render view's native surface came, or is about to go
+    CXUI_EV_Text,         ///< Text was typed into a canvas that takes text (bubbles)
     CXUI_EV_Count
 } CxUiEventKind;
 
@@ -930,7 +932,9 @@ enum CxUiMonitorFlags {
 
 /// A monitor, as cxuiMonitors() reports it
 ///
-/// The rectangles are in the platform's screen units, the same as CxUiPlacement's.
+/// The rectangles are in the platform's screen units, the same as CxUiPlacement's. It holds
+/// strings: an array of monitors frees them with the array, and one kept elsewhere is copied with
+/// cxuiMonitorCopy() and freed with cxuiMonitorDestroy().
 typedef struct CxUiMonitor {
     /// The whole monitor
     CxUiRect bounds;
@@ -940,9 +944,26 @@ typedef struct CxUiMonitor {
     float32 scale;
     /// CxUiMonitorFlags
     flags_t flags;
+    /// Names the same monitor from one run to the next, even when monitors are numbered
+    /// differently; empty where the platform can't tell
+    string id;
+    /// The monitor's name to show people, such as its model; empty where unknown
+    string name;
+    /// How many times a second it shows a new picture; 0 where unknown
+    float32 refreshHz;
+    /// How far in from each edge of bounds content is safe from being hidden, such as under a
+    /// camera housing; all 0 for none
+    CxUiEdges safeArea;
 } CxUiMonitor;
 
-saDeclareType(CxUiMonitor, CxUiMonitor);
+stDeclare(CxUiMonitor);
+saDeclare(CxUiMonitor);
+#define SType_CxUiMonitor                         CxUiMonitor*
+#define STStorageType_CxUiMonitor                 CxUiMonitor
+#define STypeArg_CxUiMonitor(type, val)           stgeneric(opaque, &(val))
+#define STypeArgPtr_CxUiMonitor(type, val)        &stgeneric(opaque, (val))
+#define STypeCheckedArg_CxUiMonitor(type, val)    stType(type), stArg(type, val)
+#define STypeCheckedPtrArg_CxUiMonitor(type, val) stType(type), stArgPtr(type, val)
 
 /// Initial settings for cxuiCanvasCreate(); a field left at 0 takes the default
 typedef struct CxUiCanvasDesc {

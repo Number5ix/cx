@@ -110,8 +110,8 @@ elseif(CX_PLATFORM_IS_MACOS)
     target_sources(cxui PRIVATE platform/appkit/appkit_ui.h ${CXUI_APPKIT_SRCS})
     set_source_files_properties(${CXUI_APPKIT_SRCS} PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_compile_definitions(cxui PRIVATE CXUI_BACKEND_APPKIT)
-    target_link_libraries(cxui PUBLIC "-framework AppKit" "-framework CoreText" "-framework QuartzCore"
-                                      "-framework UniformTypeIdentifiers")
+    target_link_libraries(cxui PUBLIC "-framework AppKit" "-framework ColorSync" "-framework CoreText"
+                                      "-framework QuartzCore" "-framework UniformTypeIdentifiers")
 elseif(CX_PLATFORM_IS_UNIX AND NOT CX_PLATFORM_IS_MACOS)
     find_package(PkgConfig)
     if(PKG_CONFIG_FOUND)
@@ -142,6 +142,25 @@ elseif(CX_PLATFORM_IS_UNIX AND NOT CX_PLATFORM_IS_MACOS)
     if(GTK4_WAYLAND_FOUND)
         target_compile_definitions(cxui PRIVATE CXUI_GTK4_WAYLAND)
         target_link_libraries(cxui PRIVATE PkgConfig::GTK4_WAYLAND)
+
+        # Pointer lock on Wayland takes two protocols GTK doesn't offer; without them it isn't
+        # available there.
+        find_program(CXUI_WAYLAND_SCANNER wayland-scanner)
+        pkg_get_variable(CXUI_WAYLAND_PROTOCOLS wayland-protocols pkgdatadir)
+        if(CXUI_WAYLAND_SCANNER AND CXUI_WAYLAND_PROTOCOLS)
+            foreach(proto pointer-constraints relative-pointer)
+                set(xml ${CXUI_WAYLAND_PROTOCOLS}/unstable/${proto}/${proto}-unstable-v1.xml)
+                set(out ${CMAKE_CURRENT_BINARY_DIR}/${proto}-unstable-v1)
+                add_custom_command(
+                    OUTPUT ${out}-client-protocol.h ${out}-protocol.c
+                    COMMAND ${CXUI_WAYLAND_SCANNER} client-header ${xml} ${out}-client-protocol.h
+                    COMMAND ${CXUI_WAYLAND_SCANNER} private-code ${xml} ${out}-protocol.c
+                    DEPENDS ${xml}
+                    VERBATIM)
+                target_sources(cxui PRIVATE ${out}-client-protocol.h ${out}-protocol.c)
+            endforeach()
+            target_compile_definitions(cxui PRIVATE CXUI_GTK4_WLLOCK)
+        endif()
     endif()
     pkg_check_modules(GTK4_X11 IMPORTED_TARGET gtk4-x11 x11)
     if(GTK4_X11_FOUND)

@@ -69,6 +69,7 @@ if(CX_STANDALONE AND CX_UI)
         cxuigallery/main.c
         cxuigallery/page_canvas.c
         cxuigallery/page_desktop.c
+        cxuigallery/page_input.c
         cxuigallery/page_drawn.c
         cxuigallery/page_grid.c
         cxuigallery/page_layout.c

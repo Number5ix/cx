@@ -11,7 +11,7 @@ CXUI_DEFINE_ENTRY_POINT;
 
 static const GalleryPage* const pages[] = {
     &galleryNative, &galleryValues, &galleryDrawn,   &galleryText,   &galleryLayout,  &galleryTabs,
-    &galleryGrid,   &galleryCanvas, &galleryDesktop, &galleryModals, &galleryWindows,
+    &galleryGrid,   &galleryCanvas, &galleryInput,   &galleryDesktop, &galleryModals, &galleryWindows,
 #if defined(CXUIGALLERY_LUA)
     &galleryLua,
 #endif
@@ -111,17 +111,20 @@ static CxUiResult onMove(stvlist* cvars, CxUiMoveEvent* ev)
 static CxUiResult onShowState(stvlist* cvars, CxUiShowStateEvent* ev)
 {
     unused_noeval(cvars);
-    static const strref states[] = { _S"normal", _S"minimized", _S"maximized" };
-    say(_SL("${string}: ${string}\n"), stvar(strref, titleOf(&ev->base)),
-        stvar(strref, ev->state < 3 ? states[ev->state] : _S"?"));
+    static const strref states[] = { _S"normal", _S"minimized", _S"maximized", _S"fullscreen" };
+    say(_SL("${string}: ${string}${string}\n"), stvar(strref, titleOf(&ev->base)),
+        stvar(strref, ev->state < 4 ? states[ev->state] : _S"?"), stvar(strref, ev->occluded ? _S", occluded" : _S""));
     return CXUI_Default;
 }
 
 static CxUiResult onFocus(stvlist* cvars, CxUiFocusEvent* ev)
 {
     unused_noeval(cvars);
-    say(_SL("${string}: ${string}\n"), stvar(strref, titleOf(&ev->base)),
-        stvar(strref, ev->gained ? _S"activated" : _S"deactivated"));
+    say(_SL("${string}: ${string}${string}\n"), stvar(strref, titleOf(&ev->base)),
+        stvar(strref, ev->gained ? _S"activated" : _S"deactivated"),
+        stvar(strref, !(ev->flags & CXUI_FOCUS_PointerLock) ? _S""
+                      : ev->gained                           ? _S", pointer lock taken again"
+                                                             : _S", pointer lock let go"));
     return CXUI_Default;
 }
 

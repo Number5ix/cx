@@ -38,6 +38,10 @@ typedef struct CxUiRuntime {
     // The canvas the mouse is captured by, while a button is held over it; not a reference,
     // cleared when it is unrealized (UI thread only)
     CxUiCanvas* capture;
+    // The canvas with the pointer locked, and one whose lock waits for its window to be active
+    // again; not references, cleared when they are unrealized (UI thread only)
+    CxUiCanvas* lock;
+    CxUiCanvas* lockIdle;
     // Focus is going to a widget already on screen, such as one clicked, which needs no
     // scrolling into view (UI thread only)
     bool focusInPlace;
@@ -239,6 +243,12 @@ void _cxuiPlacementClamp(_Inout_ CxUiPlacement* pl);
 // nearest other's center. In the platform's screen units.
 CxUiPoint _cxuiNearPoint(CxUiRect win, CxUiRect other, uint32 where);
 
+// The connected monitor with this id, or where either has none these bounds, copied to out
+// (which must be cleared or hold a monitor); false if there is none.
+bool _cxuiMonitorFind(_In_opt_ strref id, CxUiRect bounds, _Inout_ CxUiMonitor* out);
+// The monitors changed; backends call it inside _cxuiNativeEnter/Leave.
+void _cxuiMonitorsChanged(void);
+
 // Native window events. Backends call these from inside _cxuiNativeEnter/Leave. A peer's widget
 // stays valid while realized, because the runtime holds a reference to each realized window.
 void _cxuiWindowCloseRequested(_In_ CxUiPeer* p, uint32 reason);
@@ -246,6 +256,8 @@ void _cxuiWindowResized(_In_ CxUiPeer* p, CxUiSize px, CxUiSize dips);
 void _cxuiWindowMoved(_In_ CxUiPeer* p, CxUiPoint pos);
 void _cxuiWindowStateChanged(_In_ CxUiPeer* p, uint32 state);
 void _cxuiWindowActivated(_In_ CxUiPeer* p, bool active);
+// Nothing of the window can be seen, or something can again.
+void _cxuiWindowOccluded(_In_ CxUiPeer* p, bool occluded);
 // The window's scale changed, and its client area is now px. Report the new size here rather
 // than through _cxuiWindowResized.
 void _cxuiWindowDpiChanged(_In_ CxUiPeer* p, float32 scale, CxUiSize px);
@@ -379,10 +391,26 @@ bool _cxuiWindowUserResizable(_In_ CxUiWindow* w);
 CxUiResult _cxuiCanvasWheel(_In_ CxUiPeer* p, float64 dx, float64 dy, uint32 mods, CxUiPoint px);
 // A key for the focused canvas, or for a window with nothing focused.
 CxUiResult _cxuiKey(_In_ CxUiPeer* p, CxUiKey key, uint32 mods, uint32 scancode, bool down);
+// Text typed into a canvas, after its key; dropped unless the canvas has text input on.
+void _cxuiCanvasText(_In_ CxUiPeer* p, _In_ strref text);
+// How far the mouse moved while the pointer is locked to the canvas, in physical pixels (or the
+// platform's relative units in Raw mode).
+void _cxuiCanvasPointerMotion(_In_ CxUiPeer* p, float32 dx, float32 dy, uint32 mods);
 // A canvas gained or lost keyboard focus.
 void _cxuiFocusChanged(_In_ CxUiPeer* p, bool gained);
 // Forgets input state for a widget that is being unrealized.
 void _cxuiInputForget(_In_ CxUiWidget* w);
+// The pointer was moved to px on the canvas; the next move counts from there.
+void _cxuiCanvasWarped(_In_ CxUiCanvas* cv, CxUiPoint px);
+// cxuiCanvasSetPointerLock() on a live canvas
+bool _cxuiPointerLockSet(_In_ CxUiCanvas* cv, uint32 mode);
+// A canvas's peer is being hidden, or its window is: a pointer lock on it ends.
+void _cxuiInputHidden(_In_ CxUiWidget* w);
+// The window became active or inactive: a pointer lock in it is let go or taken again, and the
+// capture of a locked canvas ends. Returns CxUiFocusFlags for the window's focus event.
+uint32 _cxuiInputActivated(_In_ CxUiWindow* win, bool active);
+// Lets go of a pointer lock at the end of a session, while peers still exist.
+void _cxuiInputEndSession(void);
 // Moves focus to the next widget that can take it after from (a widget or a window), or the one
 // before; false if there was nowhere else to go.
 bool _cxuiFocusStep(_In_ CxUiWidget* from, bool backward);

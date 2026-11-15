@@ -22,6 +22,10 @@ int _cxuiEntryRunner(int (*entry)(void));
 /// except through cxuiCallSync(). On macOS cxuiStart() fails in a program that doesn't use this.
 /// The file that uses it includes this header, which cxui.h leaves out.
 ///
+/// On macOS the program gets a Dock icon when it first shows a window, and keeps it until the
+/// cxuiShutdown() that stops cxui; a program that keeps cxui running from start to exit keeps its
+/// icon throughout.
+///
 /// Example:
 /// @code
 ///   #include <cxui/entry.h>

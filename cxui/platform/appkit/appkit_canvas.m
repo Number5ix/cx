@@ -13,10 +13,15 @@
 
 typedef struct AppKitCanvas AppKitCanvas;
 
-@interface CxUiCanvasView : NSView {
+// With text input on, the view is an input method's client: what it commits becomes text events,
+// and what it is composing is kept here but not drawn.
+@interface CxUiCanvasView : NSView <NSTextInputClient> {
   @public
     AppKitCanvas* peer;   // NULL once the peer is destroyed
+    NSMutableAttributedString* marked;
+    NSRange markedSel;
 }
+- (void)typeKey:(NSEvent*)ev;
 @end
 
 struct AppKitCanvas {
@@ -26,7 +31,24 @@ struct AppKitCanvas {
     CxUiRect painted;    // painted since the last drawRect:, to show
     bool paintPending;   // on the list for the observer
     uint32 cursor;
+    // A cursor made from an image, while one is set, and the scale it was made for
+    CxUiCursor* imageCursor;   // not a reference: the core holds it while it is set
+    void* nsCursor;            // NSCursor, retained
+    CGFloat nsCursorScale;
     CxUiPoint lastPointer;   // physical pixels
+    flags_t textInput;
+    flags_t keyCapture;
+    CxUiRect caret;          // physical pixels, while hasCaret
+    bool hasCaret;
+    // CxUiPointerLocks in effect, where the lock began in the view and on the screen, and whether
+    // this canvas hid the pointer
+    uint32 lockMode;
+    CxUiPoint lockAt;
+    CGPoint lockGlobal;
+    bool hidCursor;
+    // Where the last locked move posted by another process put the pointer, while remoteValid
+    CGPoint remoteLast;
+    bool remoteValid;
 };
 
 static CxUiCanvasView* canvasView(AppKitCanvas* c)
@@ -220,6 +242,24 @@ static bool modifierDown(NSEvent* ev, CxUiKey key)
     }
 }
 
+// A point of the view, in physical pixels, in Quartz's global display space: points from the top
+// left of the primary screen
+static CGPoint globalPoint(NSView* v, CxUiPoint px)
+{
+    CGFloat s  = viewScale(v);
+    NSPoint at = [v.window convertPointToScreen:[v convertPoint:NSMakePoint((px.x + 0.5) / s, (px.y + 0.5) / s)
+                                                         toView:nil]];
+    return CGPointMake(at.x, NSMaxY(NSScreen.screens.firstObject.frame) - at.y);
+}
+
+// Puts the pointer back where the lock began. Associating again ends the moment after a warp
+// when Quartz ignores the mouse.
+static void lockWarpBack(AppKitCanvas* c)
+{
+    CGWarpMouseCursorPosition(c->lockGlobal);
+    CGAssociateMouseAndMouseCursorPosition(c->lockMode != CXUI_POINTERLOCK_Raw);
+}
+
 _Use_decl_annotations_
 bool _cxuiAppKitKey(CxUiPeer* p, NSEvent* ev)
 {
@@ -262,6 +302,42 @@ static NSCursor* cursorFor(uint32 cursor)
     // No public busy cursor (macOS shows its own when a program stops answering), and no diagonal
     // ones before 15
     return NSCursor.arrowCursor;
+}
+
+// An image's pixels as a cursor, shown at the image's size in physical pixels
+static NSCursor* imageCursorFor(CxUiCursor* cur, CGFloat scale)
+{
+    CxUiImage* img = cur->_image;
+    CxUiSize sz    = cxuiImageSize(img);
+    int32 stride;
+    const uint8* rows      = _cxuiImageRows(img, &stride);
+    CGColorSpaceRef space  = CGColorSpaceCreateDeviceRGB();
+    CFDataRef data         = CFDataCreate(NULL, rows, (CFIndex)stride * (sz.h - 1) + sz.w * 4);
+    CGDataProviderRef prov = CGDataProviderCreateWithCFData(data);
+    // Premultiplied B, G, R, A in memory
+    CGImageRef cg = CGImageCreate(sz.w, sz.h, 8, 32, stride, space,
+                                  kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little, prov, NULL, false,
+                                  kCGRenderingIntentDefault);
+    NSImage* ns   = [[NSImage alloc] initWithCGImage:cg size:NSMakeSize(sz.w / scale, sz.h / scale)];
+    CGImageRelease(cg);
+    CGDataProviderRelease(prov);
+    CFRelease(data);
+    CGColorSpaceRelease(space);
+    return [[NSCursor alloc] initWithImage:ns hotSpot:NSMakePoint(cur->_hot.x / scale, cur->_hot.y / scale)];
+}
+
+// The canvas's cursor: an image's, made again when the scale changes, or a stock one
+static NSCursor* canvasCursor(AppKitCanvas* c, CGFloat scale)
+{
+    if (!c->imageCursor)
+        return cursorFor(c->cursor);
+    if (!c->nsCursor || c->nsCursorScale != scale) {
+        if (c->nsCursor)
+            CFBridgingRelease(c->nsCursor);
+        c->nsCursor      = (__bridge_retained void*)imageCursorFor(c->imageCursor, scale);
+        c->nsCursorScale = scale;
+    }
+    return (__bridge NSCursor*)c->nsCursor;
 }
 
 @implementation CxUiCanvasView
@@ -320,10 +396,17 @@ static NSCursor* cursorFor(uint32 cursor)
     [super updateTrackingAreas];
 }
 
+// An image cursor is made again for the new scale.
+- (void)viewDidChangeBackingProperties
+{
+    [super viewDidChangeBackingProperties];
+    [self.window invalidateCursorRectsForView:self];
+}
+
 - (void)resetCursorRects
 {
     if (peer)
-        [self addCursorRect:self.visibleRect cursor:cursorFor(peer->cursor)];
+        [self addCursorRect:self.visibleRect cursor:canvasCursor(peer, viewScale(self))];
 }
 
 - (CxUiPoint)px:(NSEvent*)ev
@@ -333,10 +416,49 @@ static NSCursor* cursorFor(uint32 cursor)
     return (CxUiPoint){ (int32)floor(p.x * s), (int32)floor(p.y * s) };
 }
 
+// Whether another process posted the event, as remote control does. Those set the pointer's
+// position, put it back after a warp, and can't be trusted for distances.
+static bool postedEvent(CGEventRef cg)
+{
+    return cg && CGEventGetIntegerValueField(cg, kCGEventSourceStateID) != kCGEventSourceStateHIDSystemState &&
+           CGEventGetIntegerValueField(cg, kCGEventSourceUnixProcessID) != 0;
+}
+
+// While locked, motion goes to cxui as distances: the event's own from the mouse, and the change
+// in position between posted events, which leave the pointer where they put it.
+- (void)lockedMotion:(NSEvent*)ev
+{
+    AppKitCanvas* c = peer;
+    CGFloat s       = viewScale(self);
+    CGEventRef cg   = ev.CGEvent;
+    float32 dx, dy;
+    if (postedEvent(cg)) {
+        CGPoint at = CGEventGetLocation(cg);
+        dx = c->remoteValid ? (float32)((at.x - c->remoteLast.x) * s) : 0;
+        dy = c->remoteValid ? (float32)((at.y - c->remoteLast.y) * s) : 0;
+        c->remoteLast  = at;
+        c->remoteValid = true;
+    } else {
+        dx             = (float32)(ev.deltaX * s);
+        dy             = (float32)(ev.deltaY * s);
+        c->remoteValid = false;
+        if (c->lockMode == CXUI_POINTERLOCK_Warp)
+            lockWarpBack(c);
+    }
+    _cxuiNativeEnter();
+    _cxuiCanvasPointerMotion(&c->cp.base, dx, dy, eventMods(ev.modifierFlags));
+    _cxuiNativeLeave();
+}
+
 - (void)pointer:(CxUiPointerKind)kind event:(NSEvent*)ev
 {
     if (!peer)
         return;
+    if (peer->lockMode && (kind == CXUI_PTR_Move || kind == CXUI_PTR_Left)) {
+        if (kind == CXUI_PTR_Move)
+            [self lockedMotion:ev];
+        return;
+    }
     CxUiPoint at = [self px:ev];
     peer->lastPointer = at;
     uint32 button     = (kind == CXUI_PTR_Press || kind == CXUI_PTR_Release) ? eventButton(ev) : 0;
@@ -381,8 +503,21 @@ static NSCursor* cursorFor(uint32 cursor)
 
 - (void)keyDown:(NSEvent*)ev
 {
-    if (!peer || !_cxuiAppKitKey(&peer->cp.base, ev))
+    if (peer && peer->textInput)
+        [self typeKey:ev];
+    else if (!peer || !_cxuiAppKitKey(&peer->cp.base, ev))
         [super keyDown:ev];
+}
+
+// With text input on, the key goes to cxui and then to the input method, which raises text through
+// insertText:. While it is composing, the keys are its own.
+- (void)typeKey:(NSEvent*)ev
+{
+    if (marked.length == 0)
+        _cxuiAppKitKey(&peer->cp.base, ev);
+    // The handler may have destroyed the canvas, or turned text input off.
+    if (peer && peer->textInput)
+        [self interpretKeyEvents:@[ ev ]];
 }
 - (void)keyUp:(NSEvent*)ev
 {
@@ -412,6 +547,96 @@ static NSCursor* cursorFor(uint32 cursor)
         _cxuiNativeLeave();
     }
     return YES;
+}
+
+// ---- NSTextInputClient ----
+
+// Without text input there is no input context, so input methods leave the keys alone.
+- (NSTextInputContext*)inputContext
+{
+    return peer && peer->textInput ? [super inputContext] : nil;
+}
+
+- (void)insertText:(id)string replacementRange:(NSRange)range
+{
+    marked       = nil;
+    NSString* in = [string isKindOfClass:NSAttributedString.class] ? [string string] : string;
+    if (!peer || in.length == 0)
+        return;
+    // Control characters are keys, and the function keys' private characters aren't text.
+    NSMutableString* text = [NSMutableString stringWithCapacity:in.length];
+    for (NSUInteger i = 0; i < in.length; i++) {
+        unichar ch = [in characterAtIndex:i];
+        if (ch >= 0x20 && ch != 0x7F && !(ch >= 0xF700 && ch <= 0xF8FF))
+            [text appendFormat:@"%C", ch];
+    }
+    if (text.length == 0)
+        return;
+    _cxuiNativeEnter();
+    _cxuiCanvasText(&peer->cp.base, (strref)text.UTF8String);
+    _cxuiNativeLeave();
+}
+
+- (void)setMarkedText:(id)string selectedRange:(NSRange)sel replacementRange:(NSRange)range
+{
+    marked = [string isKindOfClass:NSAttributedString.class]
+                 ? [[NSMutableAttributedString alloc] initWithAttributedString:string]
+                 : [[NSMutableAttributedString alloc] initWithString:string];
+    markedSel = sel;
+}
+
+- (void)unmarkText
+{
+    marked = nil;
+}
+
+- (BOOL)hasMarkedText
+{
+    return marked.length > 0;
+}
+
+- (NSRange)markedRange
+{
+    return marked.length > 0 ? NSMakeRange(0, marked.length) : NSMakeRange(NSNotFound, 0);
+}
+
+- (NSRange)selectedRange
+{
+    return marked.length > 0 ? markedSel : NSMakeRange(0, 0);
+}
+
+- (NSArray<NSAttributedStringKey>*)validAttributesForMarkedText
+{
+    return @[];
+}
+
+- (NSAttributedString*)attributedSubstringForProposedRange:(NSRange)range actualRange:(NSRangePointer)actual
+{
+    return nil;
+}
+
+- (NSUInteger)characterIndexForPoint:(NSPoint)point
+{
+    return NSNotFound;
+}
+
+// Where the input method's windows go: by the caret, or by the canvas without one
+- (NSRect)firstRectForCharacterRange:(NSRange)range actualRange:(NSRangePointer)actual
+{
+    if (actual)
+        *actual = range;
+    NSRect r = self.bounds;
+    if (peer && peer->hasCaret) {
+        CGFloat s  = viewScale(self);
+        CxUiRect c = peer->caret;
+        r          = NSMakeRect(c.x / s, c.y / s, max(c.w, 1) / s, c.h / s);
+    }
+    return self.window ? [self.window convertRectToScreen:[self convertRect:r toView:nil]] : NSZeroRect;
+}
+
+// The key has already gone to cxui as a key event.
+- (void)doCommandBySelector:(SEL)sel
+{
 }
 @end
 
@@ -537,6 +762,108 @@ void _cxuiAppKitCanvasSetCursor(CxUiPeer* p, uint32 cursor)
     [v.window invalidateCursorRectsForView:v];
 }
 
+void _cxuiAppKitCanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor)
+{
+    AppKitCanvas* c = (AppKitCanvas*)p;
+    if (c->nsCursor)
+        CFBridgingRelease(c->nsCursor);
+    c->nsCursor       = NULL;
+    c->imageCursor    = cursor;
+    CxUiCanvasView* v = canvasView(c);
+    [v.window invalidateCursorRectsForView:v];
+}
+
+bool _cxuiAppKitCanvasWarpPointer(CxUiPeer* p, CxUiPoint px)
+{
+    CxUiCanvasView* v = canvasView((AppKitCanvas*)p);
+    if (!v.window)
+        return false;
+    CGWarpMouseCursorPosition(globalPoint(v, px));
+    CGAssociateMouseAndMouseCursorPosition(true);
+    return true;
+}
+
+bool _cxuiAppKitCanvasSetTextInput(CxUiPeer* p, flags_t flags)
+{
+    AppKitCanvas* c   = (AppKitCanvas*)p;
+    CxUiCanvasView* v = canvasView(c);
+    if (!flags && c->textInput) {
+        [v.inputContext discardMarkedText];
+        v->marked = nil;
+    }
+    c->textInput = flags;
+    return true;
+}
+
+void _cxuiAppKitCanvasSetTextCaret(CxUiPeer* p, CxUiRect px)
+{
+    AppKitCanvas* c = (AppKitCanvas*)p;
+    c->caret        = px;
+    c->hasCaret     = true;
+    [canvasView(c).inputContext invalidateCharacterCoordinates];
+}
+
+// Command already reaches a canvas, so there is nothing to do for the system key.
+bool _cxuiAppKitCanvasSetKeyCapture(CxUiPeer* p, flags_t flags)
+{
+    ((AppKitCanvas*)p)->keyCapture = flags;
+    return true;
+}
+
+_Use_decl_annotations_
+bool _cxuiAppKitCanvasTakesKeys(id responder)
+{
+    return [responder isKindOfClass:CxUiCanvasView.class] && ((CxUiCanvasView*)responder)->peer &&
+           (((CxUiCanvasView*)responder)->peer->keyCapture & CXUI_KEYCAPTURE_On);
+}
+
+_Use_decl_annotations_
+bool _cxuiAppKitCanvasCaptureKey(id responder, NSEvent* ev)
+{
+    CxUiCanvasView* v = responder;
+    // Command+Q still quits, through the menu.
+    NSEventModifierFlags mods = ev.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask &
+                                ~(NSEventModifierFlagCapsLock | NSEventModifierFlagNumericPad | NSEventModifierFlagFunction);
+    if (ev.type != NSEventTypeFlagsChanged && mods == NSEventModifierFlagCommand &&
+        [ev.charactersIgnoringModifiers.lowercaseString isEqualToString:@"q"])
+        return false;
+    if (ev.type == NSEventTypeKeyDown && v->peer->textInput)
+        [v typeKey:ev];
+    else
+        _cxuiAppKitKey(&v->peer->cp.base, ev);
+    return true;
+}
+
+// The pointer is hidden while locked, and in Raw mode stops moving while the mouse goes on
+// reporting motion.
+uint32 _cxuiAppKitCanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px)
+{
+    AppKitCanvas* c   = (AppKitCanvas*)p;
+    CxUiCanvasView* v = canvasView(c);
+    if (mode == CXUI_POINTERLOCK_Off || !v.window) {
+        if (c->lockMode) {
+            c->lockMode   = CXUI_POINTERLOCK_Off;
+            c->lockGlobal = globalPoint(v, px);
+            lockWarpBack(c);
+        }
+        if (c->hidCursor) {
+            [NSCursor unhide];
+            c->hidCursor = false;
+        }
+        return CXUI_POINTERLOCK_Off;
+    }
+    c->lockMode    = mode;
+    c->lockAt      = px;
+    c->lockGlobal  = globalPoint(v, px);
+    c->remoteValid = false;
+    lockWarpBack(c);
+    if (!c->hidCursor) {
+        [NSCursor hide];
+        c->hidCursor = true;
+    }
+    return mode;
+}
+
 void _cxuiAppKitDoubleClick(int64* time, int32* distance)
 {
     *time     = (int64)(NSEvent.doubleClickInterval * 1e6);
@@ -569,6 +896,10 @@ void _cxuiAppKitCanvasDestroy(CxUiPeer* p)
     AppKitCanvas* c = (AppKitCanvas*)p;
     if (c->paintPending)
         [pending removeObject:[NSValue valueWithPointer:c]];
+    if (c->lockMode || c->hidCursor)
+        _cxuiAppKitCanvasPointerLock(p, CXUI_POINTERLOCK_Off, c->lockAt);
+    if (c->nsCursor)
+        CFBridgingRelease(c->nsCursor);
     CxUiCanvasView* v = CFBridgingRelease(c->view);
     v->peer           = NULL;
     [v removeFromSuperview];

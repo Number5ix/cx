@@ -176,6 +176,7 @@ static bool appkitInit(flags_t flags)
     themeObserver        = [CxUiThemeObserver new];
     [NSApp addObserver:themeObserver forKeyPath:@"effectiveAppearance" options:0 context:NULL];
     _cxuiAppKitTextInit();
+    _cxuiAppKitDesktopInit();
     return true;
 }
 
@@ -343,6 +344,9 @@ const CxUiBackend _cxuiAppKitBackend = {
     .windowEndModal    = _cxuiAppKitWindowEndModal,
     .windowSetOwner    = _cxuiAppKitWindowSetOwner,
     .windowMoveNear    = _cxuiAppKitWindowMoveNear,
+    .windowSetFullscreen = _cxuiAppKitWindowSetFullscreen,
+    .windowMonitor       = _cxuiAppKitWindowMonitorOf,
+    .windowSetTopmost    = _cxuiAppKitWindowSetTopmost,
 
     .systemScale      = _cxuiAppKitSystemScale,
     .canvasCreate     = _cxuiAppKitCanvasCreate,
@@ -353,6 +357,12 @@ const CxUiBackend _cxuiAppKitBackend = {
     .peerFocus        = _cxuiAppKitPeerFocus,
     .peerSetTip       = _cxuiAppKitPeerSetTip,
     .canvasSetCursor  = _cxuiAppKitCanvasSetCursor,
+    .canvasSetCursorImage = _cxuiAppKitCanvasSetCursorImage,
+    .canvasWarpPointer    = _cxuiAppKitCanvasWarpPointer,
+    .canvasSetTextInput  = _cxuiAppKitCanvasSetTextInput,
+    .canvasSetTextCaret  = _cxuiAppKitCanvasSetTextCaret,
+    .canvasSetKeyCapture = _cxuiAppKitCanvasSetKeyCapture,
+    .canvasPointerLock   = _cxuiAppKitCanvasPointerLock,
     .surfaceGet       = _cxuiAppKitSurfaceGet,
     .doubleClick      = _cxuiAppKitDoubleClick,
 
@@ -443,6 +453,7 @@ const CxUiBackend _cxuiAppKitBackend = {
     .testPeerShown        = _cxuiAppKitTestPeerShown,
     .testFrontmost        = _cxuiAppKitTestFrontmost,
     .testWindowActive     = _cxuiAppKitTestWindowActive,
+    .testTopmost = _cxuiAppKitTestTopmost,
     .testTextInfo         = _cxuiAppKitTestTextInfo,
     .testType             = _cxuiAppKitTestType,
     .testNativeKey        = _cxuiAppKitTestNativeKey,

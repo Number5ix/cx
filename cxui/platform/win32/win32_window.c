@@ -36,6 +36,12 @@ typedef struct Win32Window {
     bool modal;
     // The window it belongs to, which a popup's owner stands in for while it runs
     HWND owner;
+    // CxUiFullscreen, and the style and placement to go back to
+    uint32 fsMode;
+    DWORD fsStyle;
+    WINDOWPLACEMENT fsPlace;
+    // The program asked for it to stay above other windows
+    bool topmost;
 } Win32Window;
 
 static const WCHAR windowClass[] = L"CxUiWindow";
@@ -249,6 +255,7 @@ static LRESULT win32WindowMessage(Win32Window* p, HWND hwnd, UINT msg, WPARAM wp
         if (wp == SIZE_MAXSHOW || wp == SIZE_MAXHIDE)
             break;
         uint32 state = wp == SIZE_MINIMIZED   ? CXUI_WINDOW_Minimized
+                       : p->fsMode            ? CXUI_WINDOW_Fullscreen
                        : wp == SIZE_MAXIMIZED ? CXUI_WINDOW_Maximized
                                               : CXUI_WINDOW_Normal;
         CxUiSize px  = { LOWORD(lp), HIWORD(lp) };
@@ -287,6 +294,10 @@ static LRESULT win32WindowMessage(Win32Window* p, HWND hwnd, UINT msg, WPARAM wp
         if (LOWORD(wp) == WA_INACTIVE && focus && IsChild(hwnd, focus))
             p->lastFocus = focus;
         LRESULT ret = DefWindowProcW(hwnd, msg, wp, lp);
+        // A Monitor window stays above everything, the taskbar included, only while active.
+        if (p->fsMode == CXUI_FULLSCREEN_Monitor && !p->topmost)
+            SetWindowPos(hwnd, LOWORD(wp) != WA_INACTIVE ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
         HWND back   = p->lastFocus;
         if (LOWORD(wp) != WA_INACTIVE && !HIWORD(wp) && back && IsWindow(back) && IsChild(hwnd, back) &&
             IsWindowVisible(back) && IsWindowEnabled(back))
@@ -343,7 +354,7 @@ static LRESULT win32WindowMessage(Win32Window* p, HWND hwnd, UINT msg, WPARAM wp
         // already has the size it wants.
         const RECT* r  = (const RECT*)lp;
         p->dpiChanging = true;
-        if (!p->placing)
+        if (!p->placing && !p->fsMode)
             SetWindowPos(hwnd, NULL, r->left, r->top, r->right - r->left, r->bottom - r->top,
                          SWP_NOZORDER | SWP_NOACTIVATE);
         p->dpiChanging = false;
@@ -356,8 +367,14 @@ static LRESULT win32WindowMessage(Win32Window* p, HWND hwnd, UINT msg, WPARAM wp
         return 0;
     }
 
+    case WM_DISPLAYCHANGE:
+        _cxuiWin32DisplayChanged();
+        break;
+
     // Sent to every top-level window, so each window that follows the system hears it.
     case WM_SETTINGCHANGE:
+        if (wp == SPI_SETWORKAREA)
+            _cxuiWin32DisplayChanged();
         if (lp && lstrcmpW((LPCWSTR)lp, L"ImmersiveColorSet") == 0) {
             _cxuiNativeEnter();
             _cxuiSystemThemeChanged();
@@ -639,12 +656,17 @@ void _cxuiWin32WindowGetPlacement(CxUiPeer* peer, CxUiPlacement* out)
     Win32Window* p     = (Win32Window*)peer;
     WINDOWPLACEMENT wp = { sizeof(wp) };
     *out               = (CxUiPlacement){ 0 };
-    if (!GetWindowPlacement(p->hwnd, &wp))
+    if (p->fsMode)
+        wp = p->fsPlace;
+    else if (!GetWindowPlacement(p->hwnd, &wp))
         return;
     POINT off   = workspaceOffset(MonitorFromWindow(p->hwnd, MONITOR_DEFAULTTONEAREST));
     RECT r      = wp.rcNormalPosition;
     out->normal = (CxUiRect){ r.left + off.x, r.top + off.y, r.right - r.left, r.bottom - r.top };
-    out->state  = IsIconic(p->hwnd) ? CXUI_WINDOW_Minimized : IsZoomed(p->hwnd) ? CXUI_WINDOW_Maximized : CXUI_WINDOW_Normal;
+    out->state  = IsIconic(p->hwnd)  ? CXUI_WINDOW_Minimized
+                  : p->fsMode        ? CXUI_WINDOW_Fullscreen
+                  : IsZoomed(p->hwnd) ? CXUI_WINDOW_Maximized
+                                     : CXUI_WINDOW_Normal;
     out->valid  = CXUI_PLACE_Position | CXUI_PLACE_Size | CXUI_PLACE_State;
 }
 
@@ -666,13 +688,98 @@ void _cxuiWin32WindowSetPlacement(CxUiPeer* peer, const CxUiPlacement* pl, bool 
         POINT off = workspaceOffset(MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST));
         OffsetRect(&r, -off.x, -off.y);
         wp.rcNormalPosition = r;
+        // A fullscreen window goes back there when it leaves.
+        if (p->fsMode) {
+            p->fsPlace.rcNormalPosition = r;
+            return;
+        }
     }
+    if (p->fsMode)
+        return;
     uint32 cur = IsIconic(p->hwnd) ? CXUI_WINDOW_Minimized : IsZoomed(p->hwnd) ? CXUI_WINDOW_Maximized : CXUI_WINDOW_Normal;
     wp.flags   = 0;
     wp.showCmd = withState ? showCmdFor(pl->state) : IsWindowVisible(p->hwnd) ? showCmdFor(cur) : SW_HIDE;
     p->placing = true;
     SetWindowPlacement(p->hwnd, &wp);
     p->placing = false;
+}
+
+bool _cxuiWin32WindowSetTopmost(CxUiPeer* peer, bool on)
+{
+    Win32Window* p = (Win32Window*)peer;
+    p->topmost     = on;
+    // A Monitor window is above everything while active anyway.
+    bool front = on || (p->fsMode == CXUI_FULLSCREEN_Monitor && GetActiveWindow() == p->hwnd);
+    return SetWindowPos(p->hwnd, front ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER) != 0;
+}
+
+bool _cxuiWin32TestTopmost(CxUiPeer* p, bool* topmost)
+{
+    *topmost = (GetWindowLongW(((Win32Window*)p)->hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
+    return true;
+}
+
+int32 _cxuiWin32WindowMonitorOf(CxUiPeer* p)
+{
+    return _cxuiWin32WindowMonitor(((Win32Window*)p)->hwnd);
+}
+
+// Both modes are a window without a frame covering the monitor; Windows hides the taskbar while
+// such a window is active. A Monitor window is also above everything while active.
+bool _cxuiWin32WindowSetFullscreen(CxUiPeer* peer, uint32 mode, const CxUiMonitor* mon)
+{
+    Win32Window* p = (Win32Window*)peer;
+    HWND hwnd      = p->hwnd;
+    if (mode == CXUI_FULLSCREEN_None) {
+        if (!p->fsMode)
+            return true;
+        p->fsMode = CXUI_FULLSCREEN_None;
+        SetWindowLongW(hwnd, GWL_STYLE, (LONG)p->fsStyle);
+        SetWindowPos(hwnd, p->topmost ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        WINDOWPLACEMENT wp = p->fsPlace;
+        if (wp.showCmd != SW_SHOWMAXIMIZED)
+            wp.showCmd = SW_SHOWNOACTIVATE;
+        p->placing = true;
+        SetWindowPlacement(hwnd, &wp);
+        p->placing = false;
+    } else {
+        RECT r;
+        if (mon) {
+            r = (RECT){ mon->bounds.x, mon->bounds.y, mon->bounds.x + mon->bounds.w, mon->bounds.y + mon->bounds.h };
+        } else {
+            MONITORINFO mi = { sizeof(mi) };
+            if (!GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mi))
+                return false;
+            r = mi.rcMonitor;
+        }
+        if (!p->fsMode) {
+            p->fsPlace.length = sizeof(p->fsPlace);
+            GetWindowPlacement(hwnd, &p->fsPlace);
+            p->fsStyle = (DWORD)GetWindowLongW(hwnd, GWL_STYLE);
+        }
+        p->fsMode = mode;
+        if (IsZoomed(hwnd) || IsIconic(hwnd))
+            ShowWindow(hwnd, SW_RESTORE);
+        DWORD style = (p->fsStyle & ~(WS_OVERLAPPEDWINDOW | WS_MAXIMIZE | WS_MINIMIZE)) | WS_POPUP | WS_CLIPCHILDREN;
+        SetWindowLongW(hwnd, GWL_STYLE, (LONG)style);
+        bool front = p->topmost || (mode == CXUI_FULLSCREEN_Monitor && GetActiveWindow() == hwnd);
+        p->placing = true;
+        SetWindowPos(hwnd, front ? HWND_TOPMOST : HWND_NOTOPMOST, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        p->placing = false;
+    }
+    // WM_SIZE reports it, unless the size didn't change.
+    uint32 state = IsIconic(hwnd) ? CXUI_WINDOW_Minimized
+                   : p->fsMode    ? CXUI_WINDOW_Fullscreen
+                   : IsZoomed(hwnd) ? CXUI_WINDOW_Maximized
+                                    : CXUI_WINDOW_Normal;
+    if (state != p->lastState) {
+        p->lastState = state;
+        _cxuiWindowStateChanged(&p->base, state);
+    }
+    return true;
 }
 
 static HWND tipsOf(HWND root, bool create);

@@ -15,15 +15,87 @@ bool cxuiClipboardGetText(string* out)
     return _cxui.backend && _cxui.backend->clipboardGetText && _cxui.backend->clipboardGetText(out);
 }
 
+cchain cxuiMonitorsChangedNotify;
+
+_Use_decl_annotations_
+void cxuiMonitorDestroy(CxUiMonitor* m)
+{
+    strDestroy(&m->id);
+    strDestroy(&m->name);
+    *m = (CxUiMonitor){ 0 };
+}
+
+_Use_decl_annotations_
+void cxuiMonitorCopy(CxUiMonitor* out, const CxUiMonitor* m)
+{
+    if (out == m)
+        return;
+    cxuiMonitorDestroy(out);
+    *out    = *m;
+    out->id = NULL;
+    out->name = NULL;
+    strDup(&out->id, m->id);
+    strDup(&out->name, m->name);
+}
+
+static void monitorDtorOp(stype st, stgeneric* g, uint32 flags)
+{
+    cxuiMonitorDestroy((CxUiMonitor*)g->st_opaque);
+}
+
+// The destination is raw storage, so it is cleared before the copy destroys what it held.
+static void monitorCopyOp(stype st, stgeneric* dest, stgeneric src, uint32 flags)
+{
+    *(CxUiMonitor*)dest->st_opaque = (CxUiMonitor){ 0 };
+    cxuiMonitorCopy((CxUiMonitor*)dest->st_opaque, (const CxUiMonitor*)src.st_opaque);
+}
+
+stDefine(CxUiMonitor) {
+    .id    = stTypeId(opaque),
+    .size  = sizeof(CxUiMonitor),
+    .flags = stFlag(PassPtr),
+    .ops   = { .dtor = monitorDtorOp, .copy = monitorCopyOp },
+};
+
 _Use_decl_annotations_
 int32 cxuiMonitors(sa_CxUiMonitor* out)
 {
     if (!out->a)
-        saInit(out, opaque(CxUiMonitor), 4);
+        saInit(out, CxUiMonitor, 4);
+    devAssertMsg(stEq(saElemType(*out), stType(CxUiMonitor)),
+                 "an array of monitors set up with a type that doesn't free their strings");
     saClear(out);
     if (_cxui.backend && _cxui.backend->monitors)
         _cxui.backend->monitors(out);
     return saSize(*out);
+}
+
+// By id where both have one, which survives a monitor being moved; otherwise by bounds
+_Use_decl_annotations_
+bool _cxuiMonitorFind(strref id, CxUiRect bounds, CxUiMonitor* out)
+{
+    sa_CxUiMonitor mons = { 0 };
+    int32 found         = -1;
+    int32 n             = cxuiMonitors(&mons);
+    for (int32 i = 0; i < n && found < 0 && !strEmpty(id); i++) {
+        if (strEq(mons.a[i].id, id))
+            found = i;
+    }
+    for (int32 i = 0; i < n && found < 0; i++) {
+        CxUiRect b = mons.a[i].bounds;
+        if ((strEmpty(id) || strEmpty(mons.a[i].id)) && b.x == bounds.x && b.y == bounds.y && b.w == bounds.w &&
+            b.h == bounds.h)
+            found = i;
+    }
+    if (found >= 0)
+        cxuiMonitorCopy(out, &mons.a[found]);
+    saDestroy(&mons);
+    return found >= 0;
+}
+
+void _cxuiMonitorsChanged(void)
+{
+    cchainCall(&cxuiMonitorsChangedNotify, stvNone);
 }
 
 // Whether enough of the top edge is on the monitor's work area to take hold of with the mouse

@@ -17,6 +17,8 @@
 ///   pieces copies nothing.
 /// - Images are objects: release them with objRelease(), from any thread. Each drawing engine
 ///   makes its own copy the first time the image is drawn.
+/// - **A mouse cursor** can be made from an image with cxuiCursorCreate(), and shown over a canvas
+///   with cxuiCanvasSetCursorImage().
 ///
 /// @code
 ///   CxUiImage* atlas = cxuiImageCreateRGBA(256, 256, 256 * 4, pixels);

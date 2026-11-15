@@ -80,6 +80,9 @@ void* _cxuiFontNative(_In_ CxUiFont* f, _In_ const CxUiDrawOps* ops);
 // The engine's copy of a root image, made on first use. UI thread.
 void* _cxuiImageNative(_In_ CxUiImage* root, _In_ const CxUiDrawOps* ops);
 
+// An image's first row of premultiplied B, G, R, A pixels, and the bytes from one row to the next
+_Ret_valid_ const uint8* _cxuiImageRows(_In_ CxUiImage* img, _Out_ int32* stride);
+
 // The number of codepoints in s
 int32 _cxuiCodepoints(_In_opt_ strref s);
 // The byte offset of code point n in s, or its length if s is shorter

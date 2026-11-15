@@ -455,6 +455,8 @@ void _cxuiLayoutPlace(CxUiWidget* w, CxUiLayoutRect r)
 static void setPeerShown(CxUiPeer* p, bool shown)
 {
     if (p->hidden == shown && _cxui.backend->peerSetVisible) {
+        if (!shown && p->kind == CXUI_PEER_Canvas && p->w)
+            _cxuiInputHidden(p->w);
         p->hidden = !shown;
         _cxui.backend->peerSetVisible(p, shown);
     }

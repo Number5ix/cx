@@ -18,4 +18,22 @@
     destroy();
 }
 
+/// A mouse cursor made from an image, for cxuiCanvasSetCursorImage()
+[methodprefix cxuiCursor] class CxUiCursor {
+    object[CxUiImage] _image;
+    // The point that clicks, in the image's pixels
+    CxUiPoint _hot;
+
+    /// Creates a cursor from an image
+    ///
+    /// The image is in physical pixels, as the cursor is shown, so make a larger one for a
+    /// display with a larger scale.
+    ///
+    /// @param img The image, which the cursor holds; it can be a part of another
+    /// @param hotX The point that clicks: pixels from the image's left edge
+    /// @param hotY Pixels from its top edge
+    /// @return The cursor; release it with objRelease()
+    factory create([in] CxUiImage* img, int32 hotX, int32 hotY);
+}
+
 /// @}

@@ -1,10 +1,26 @@
 #include "gtk4_ui.h"
 
+#include <cx/format.h>
+
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
 #endif
 
 // ---- monitors ----
+
+// The connector, such as DP-1, stays with the port the monitor is plugged into; GDK gives no
+// serial number. The description names the monitor for people.
+static void monitorNames(GdkMonitor* mon, CxUiMonitor* m)
+{
+    const char* connector = gdk_monitor_get_connector(mon);
+    const char* maker     = gdk_monitor_get_manufacturer(mon);
+    const char* model     = gdk_monitor_get_model(mon);
+    if (connector)
+        strFormat(&m->id, _SL("${string}:${string}:${string}"), stvar(strref, (strref)connector),
+                  stvar(strref, (strref)(maker ? maker : "")), stvar(strref, (strref)(model ? model : "")));
+    const char* desc = gdk_monitor_get_description(mon);
+    strDup(&m->name, (strref)(desc ? desc : model ? model : ""));
+}
 
 void _cxuiGtk4Monitors(sa_CxUiMonitor* out)
 {
@@ -29,10 +45,12 @@ void _cxuiGtk4Monitors(sa_CxUiMonitor* out)
         GdkRectangle g;
         gdk_monitor_get_geometry(mon, &g);
         CxUiMonitor m = {
-            .bounds   = { g.x, g.y, g.width, g.height },
-            .workArea = { g.x, g.y, g.width, g.height },
-            .scale    = (float32)gdk_monitor_get_scale(mon),
+            .bounds    = { g.x, g.y, g.width, g.height },
+            .workArea  = { g.x, g.y, g.width, g.height },
+            .scale     = (float32)gdk_monitor_get_scale(mon),
+            .refreshHz = gdk_monitor_get_refresh_rate(mon) / 1000.0f,
         };
+        monitorNames(mon, &m);
         if (x11) {
             m.flags |= CXUI_MON_PositionKnown | CXUI_MON_WorkAreaKnown;
 #ifdef GDK_WINDOWING_X11
@@ -46,12 +64,174 @@ void _cxuiGtk4Monitors(sa_CxUiMonitor* out)
         // Wayland has no primary monitor; the first one stands for it.
         if (mon == primary || (!primary && i == 0)) {
             m.flags |= CXUI_MON_Primary;
-            saInsert(out, 0, opaque, m);
+            saInsert(out, 0, CxUiMonitor, m);
         } else {
-            saPush(out, opaque, m);
+            saPush(out, CxUiMonitor, m);
+        }
+        cxuiMonitorDestroy(&m);
+        g_object_unref(mon);
+    }
+}
+
+// The index _cxuiGtk4Monitors gives mon: the primary first, then the others in the display's order
+static int32 monitorIndex(GdkDisplay* d, GdkMonitor* mon)
+{
+    GListModel* list    = gdk_display_get_monitors(d);
+    GdkMonitor* primary = NULL;
+#ifdef GDK_WINDOWING_X11
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    if (GDK_IS_X11_DISPLAY(d))
+        primary = gdk_x11_display_get_primary_monitor(d);
+    G_GNUC_END_IGNORE_DEPRECATIONS
+#endif
+    int32 others = 0, found = -1;
+    for (guint i = 0; i < g_list_model_get_n_items(list) && found < 0; i++) {
+        GdkMonitor* each = g_list_model_get_item(list, i);
+        bool isPrimary   = each == primary || (!primary && i == 0);
+        if (each == mon)
+            found = isPrimary ? 0 : others + 1;
+        if (!isPrimary)
+            others++;
+        g_object_unref(each);
+    }
+    return found;
+}
+
+int32 _cxuiGtk4MonitorOf(GtkWindow* win)
+{
+    GdkSurface* s = gtk_native_get_surface(GTK_NATIVE(win));
+    GdkDisplay* d = gtk_widget_get_display(GTK_WIDGET(win));
+    GdkMonitor* m = s ? gdk_display_get_monitor_at_surface(d, s) : NULL;
+    return m ? monitorIndex(d, m) : -1;
+}
+
+// ---- monitor changes ----
+
+// Each change can come as several signals; they make one notification.
+static GListModel* watchedList;
+static bool changePending;
+
+static bool monitorsChangedTask(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(cvars);
+    unused_noeval(args);
+    changePending = false;
+    _cxuiNativeEnter();
+    _cxuiMonitorsChanged();
+    _cxuiNativeLeave();
+    return true;
+}
+
+static void monitorChanged(void)
+{
+    if (changePending)
+        return;
+    changePending = true;
+    cxuiPost(closureCreate(monitorsChangedTask, stvNone));
+}
+
+static void onMonitorNotify(GObject* obj, GParamSpec* pspec, gpointer ud)
+{
+    unused_noeval(obj);
+    unused_noeval(pspec);
+    unused_noeval(ud);
+    monitorChanged();
+}
+
+static void watchMonitors(bool on)
+{
+    for (guint i = 0; watchedList && i < g_list_model_get_n_items(watchedList); i++) {
+        GdkMonitor* mon = g_list_model_get_item(watchedList, i);
+        g_signal_handlers_disconnect_by_func(mon, onMonitorNotify, NULL);
+        if (on) {
+            g_signal_connect(mon, "notify::geometry", G_CALLBACK(onMonitorNotify), NULL);
+            g_signal_connect(mon, "notify::scale", G_CALLBACK(onMonitorNotify), NULL);
+            g_signal_connect(mon, "notify::refresh-rate", G_CALLBACK(onMonitorNotify), NULL);
         }
         g_object_unref(mon);
     }
+}
+
+static void onMonitorsChanged(GListModel* list, guint pos, guint removed, guint added, gpointer ud)
+{
+    unused_noeval(list);
+    unused_noeval(pos);
+    unused_noeval(removed);
+    unused_noeval(added);
+    unused_noeval(ud);
+    watchMonitors(true);
+    monitorChanged();
+}
+
+void _cxuiGtk4DesktopInit(void)
+{
+    GdkDisplay* d = gdk_display_get_default();
+    if (!d)
+        return;
+    changePending = false;
+    watchedList   = g_object_ref(gdk_display_get_monitors(d));
+    g_signal_connect(watchedList, "items-changed", G_CALLBACK(onMonitorsChanged), NULL);
+    watchMonitors(true);
+}
+
+_Use_decl_annotations_
+GdkMonitor* _cxuiGtk4MonitorFor(const CxUiMonitor* m)
+{
+    GdkDisplay* d = gdk_display_get_default();
+    if (!d)
+        return NULL;
+    GListModel* list = gdk_display_get_monitors(d);
+    GdkMonitor* found = NULL;
+    for (guint i = 0; i < g_list_model_get_n_items(list) && !found; i++) {
+        GdkMonitor* mon = g_list_model_get_item(list, i);
+        GdkRectangle g;
+        gdk_monitor_get_geometry(mon, &g);
+        if (g.x == m->bounds.x && g.y == m->bounds.y && g.width == m->bounds.w && g.height == m->bounds.h)
+            found = mon;
+        g_object_unref(mon);   // the list keeps it
+    }
+    return found;
+}
+
+// ---- window manager ----
+
+bool _cxuiGtk4X11Display(void)
+{
+#if defined(CXUI_GTK4_X11)
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    return GDK_IS_X11_DISPLAY(gdk_display_get_default());
+    G_GNUC_END_IGNORE_DEPRECATIONS
+#else
+    return false;
+#endif
+}
+
+// Asks the window manager, as the EWMH spec says: a client message to the root window.
+_Use_decl_annotations_
+void _cxuiGtk4X11SetAbove(GtkWindow* win, bool on)
+{
+#if defined(CXUI_GTK4_X11)
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    GdkDisplay* d = gtk_widget_get_display(GTK_WIDGET(win));
+    GdkSurface* s = gtk_native_get_surface(GTK_NATIVE(win));
+    if (!GDK_IS_X11_DISPLAY(d) || !s)
+        return;
+    Display* dpy = gdk_x11_display_get_xdisplay(d);
+    XEvent ev    = { 0 };
+    ev.xclient.type         = ClientMessage;
+    ev.xclient.window       = gdk_x11_surface_get_xid(s);
+    ev.xclient.message_type = gdk_x11_get_xatom_by_name_for_display(d, "_NET_WM_STATE");
+    ev.xclient.format       = 32;
+    ev.xclient.data.l[0]    = on ? 1 : 0;   // _NET_WM_STATE_ADD or _REMOVE
+    ev.xclient.data.l[1]    = (long)gdk_x11_get_xatom_by_name_for_display(d, "_NET_WM_STATE_ABOVE");
+    ev.xclient.data.l[3]    = 1;            // from an application
+    XSendEvent(dpy, gdk_x11_display_get_xrootwindow(d), False, SubstructureRedirectMask | SubstructureNotifyMask, &ev);
+    XFlush(dpy);
+    G_GNUC_END_IGNORE_DEPRECATIONS
+#else
+    unused_noeval(win);
+    (void)on;
+#endif
 }
 
 // ---- clipboard ----
@@ -216,6 +396,11 @@ bool _cxuiGtk4TestClipboardForeign(strref text)
 // one, so it stays after the program ends.
 void _cxuiGtk4DesktopShutdown(void)
 {
+    if (watchedList) {
+        watchMonitors(false);
+        g_signal_handlers_disconnect_by_func(watchedList, onMonitorsChanged, NULL);
+        g_clear_object(&watchedList);
+    }
     if (foreignDisplay) {
         gdk_display_close(foreignDisplay);
         foreignDisplay = NULL;

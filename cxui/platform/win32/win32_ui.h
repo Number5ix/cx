@@ -74,6 +74,10 @@ float32 _cxuiWin32SystemScale(void);
 float32 _cxuiWin32MonitorScale(HMONITOR mon);
 void _cxuiWin32WindowGetPlacement(CxUiPeer* p, CxUiPlacement* out);
 void _cxuiWin32WindowSetPlacement(CxUiPeer* p, const CxUiPlacement* pl, bool withState);
+bool _cxuiWin32WindowSetFullscreen(CxUiPeer* p, uint32 mode, const CxUiMonitor* mon);
+int32 _cxuiWin32WindowMonitorOf(CxUiPeer* p);
+bool _cxuiWin32WindowSetTopmost(CxUiPeer* p, bool on);
+bool _cxuiWin32TestTopmost(CxUiPeer* p, bool* topmost);
 
 // win32_init.c
 // The hidden window that wakes the loop; it also owns the clipboard
@@ -81,6 +85,10 @@ HWND _cxuiWin32DispatchWindow(void);
 
 // win32_desktop.c
 void _cxuiWin32Monitors(sa_CxUiMonitor* out);
+// The index of the monitor with most of the window in what _cxuiWin32Monitors gives, or -1
+int32 _cxuiWin32WindowMonitor(HWND hwnd);
+// The displays changed; called by each top-level window, it notifies once
+void _cxuiWin32DisplayChanged(void);
 bool _cxuiWin32ClipboardSetText(_In_opt_ strref text);
 bool _cxuiWin32ClipboardGetText(_Inout_ string* out);
 bool _cxuiWin32TestClipboardForeign(_In_opt_ strref text);
@@ -98,6 +106,12 @@ bool _cxuiWin32TestExpose(CxUiPeer* p);
 bool _cxuiWin32TestScreenOrigin(CxUiPeer* p, CxUiPoint* out);
 void _cxuiWin32CanvasCapture(CxUiPeer* p, bool on);
 void _cxuiWin32CanvasSetCursor(CxUiPeer* p, uint32 cursor);
+void _cxuiWin32CanvasSetCursorImage(CxUiPeer* p, CxUiCursor* cursor);
+bool _cxuiWin32CanvasWarpPointer(CxUiPeer* p, CxUiPoint px);
+bool _cxuiWin32CanvasSetTextInput(CxUiPeer* p, flags_t flags);
+void _cxuiWin32CanvasSetTextCaret(CxUiPeer* p, CxUiRect px);
+bool _cxuiWin32CanvasSetKeyCapture(CxUiPeer* p, flags_t flags);
+uint32 _cxuiWin32CanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px);
 // Our canvas under a screen point, or NULL
 CxUiPeer* _cxuiWin32CanvasAt(POINT screen);
 HWND _cxuiWin32CanvasHwnd(_In_ CxUiPeer* p);
@@ -214,6 +228,10 @@ void _cxuiWin32RememberFocus(_In_ HWND child);
 
 // win32_input.c: each returns true if cxui handled the message
 bool _cxuiWin32Key(_In_ CxUiPeer* p, UINT msg, WPARAM wp, LPARAM lp);
+// CxUiModifiers held now
+uint32 _cxuiWin32KeyMods(void);
+// The Windows key is held while a canvas takes it, which hides it from the system's state
+bool _cxuiWin32SysKeyHeld(void);
 bool _cxuiWin32Pointer(_In_ CxUiPeer* p, HWND hwnd, _Inout_ bool* tracking, UINT msg, WPARAM wp, LPARAM lp);
 bool _cxuiWin32Wheel(UINT msg, WPARAM wp, LPARAM lp);
 void _cxuiWin32DoubleClick(int64* time, int32* distance);

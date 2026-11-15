@@ -1,4 +1,5 @@
 #include <cxui/core/cxuiwidget.cxh>
+#include <cxui/core/cxuiimage.cxh>
 
 /// @addtogroup cxui_canvas
 /// @{
@@ -12,14 +13,28 @@
     CxUiSize _size;
     // Waiting to be painted, in physical pixels
     CxUiDirtyRegion _dirty;
-    // CxUiCursors over the canvas
+    // CxUiCursors over the canvas, or an image's while _cursorImage is set
     uint32 _cursor;
+    object[CxUiCursor] _cursorImage;
     // Pointer state, kept by the core from what the platform reports
     uint32 _buttons;     // held, as CxUiMouseButtons
     bool _hover;         // an Enter was sent without a Leave since
     int64 _lastPress;    // when the last press that could start a double click happened
     uint32 _lastButton;
     CxUiPoint _lastPressAt;
+    // Where the last mouse event was, for the next move's distance; physical pixels
+    CxUiPoint _lastAt;
+    bool _lastValid;
+    // CxUiTextInputFlags, CxUiKeyCaptureFlags
+    uint32 _textInput;
+    uint32 _keyCapture;
+    // Where the program draws its caret, in physical pixels, while _hasCaret
+    CxUiRect _caret;
+    bool _hasCaret;
+    // CxUiPointerLocks: as asked for, and in effect; where the lock began, in physical pixels
+    uint32 _lockWant;
+    uint32 _lockMode;
+    CxUiPoint _lockAt;
 
     // Use cxuiCanvasCreate(), which also takes a compound literal.
     factory createWith([in] [opt] const CxUiCanvasDesc* desc);
@@ -52,8 +67,25 @@
     [prop units] unbound uint32 units();
 
     /// Sets the mouse cursor shown over the canvas
+    ///
+    /// It replaces a cursor made from an image.
+    ///
     /// @param cursor CxUiCursors
     unbound void setCursor(uint32 cursor);
+
+    /// Shows a cursor made from an image over the canvas
+    /// @param cursor The cursor (cxuiCursorCreate()), which the canvas holds; CxUiCursorNone goes
+    /// back to the one set with cxuiCanvasSetCursor()
+    unbound void setCursorImage([in] [opt] CxUiCursor* cursor);
+
+    /// Moves the pointer to a point on the canvas
+    ///
+    /// Moves after it measure their distance from there. Not while the pointer is locked.
+    ///
+    /// @param x Pixels from the canvas's left edge, in its units
+    /// @param y From its top edge
+    /// @return false where the platform can't move the pointer (Wayland), or the canvas isn't shown
+    unbound bool warpPointer(int32 x, int32 y);
 
     /// Sets the units for drawing, mouse positions and invalidated areas
     ///
@@ -62,12 +94,61 @@
     /// @param units CxUiCanvasUnits
     [prop units] unbound void setUnits(uint32 units);
 
+    /// Sets whether the canvas takes text, raising text events (cxuiOnText()) while it has focus
+    ///
+    /// Off by default, so keys stay only keys.
+    ///
+    /// @param flags CxUiTextInputFlags, or 0 for off
+    /// @return false if the platform can't give the canvas text
+    unbound bool setTextInput(flags_t flags);
+
+    /// Gets whether the canvas takes text
+    /// @return CxUiTextInputFlags
+    unbound flags_t textInput();
+
+    /// Tells the platform where the canvas draws its text caret
+    ///
+    /// The system's windows for typing, such as an input method's candidates or the accent menu,
+    /// open beside it. Set it again when the caret moves.
+    ///
+    /// @param x Left edge, in the canvas's units
+    /// @param y Top edge
+    /// @param w Width
+    /// @param h Height
+    unbound void setTextCaret(int32 x, int32 y, int32 w, int32 h);
+
+    /// Sets whether the canvas takes keys the window would otherwise use itself
+    ///
+    /// @param flags CxUiKeyCaptureFlags, or 0 for off
+    /// @return false if the platform can't do all of what the flags ask; the rest still applies
+    unbound bool setKeyCapture(flags_t flags);
+
+    /// Gets which keys the canvas takes from the window
+    /// @return CxUiKeyCaptureFlags
+    unbound flags_t keyCapture();
+
+    /// Locks the pointer to the canvas, or lets it go
+    ///
+    /// Only one canvas has the lock: taking it lets go of another's. The canvas must be shown in a
+    /// window. Mouse events then come to it with the position where the lock began and `dx`, `dy`
+    /// for the motion, until the lock is let go.
+    ///
+    /// @param mode CxUiPointerLocks
+    /// @return false if the platform can't lock the pointer, or the canvas isn't shown
+    unbound bool setPointerLock(uint32 mode);
+
+    /// Gets the pointer lock in effect
+    /// @return CxUiPointerLocks: Off while the window is inactive, and Warp where Raw was asked for
+    /// but isn't available
+    unbound uint32 pointerLockMode();
+
     uint32 eventMask();
     void realizePeer([in] CxUiPeer* host);
     void placePeer(CxUiRect px);
     void restyle();
     bool canFocus();
     init();
+    destroy();
 }
 
 /// A surface a renderer presents to, which cxui never paints or erases
@@ -79,6 +160,10 @@
 /// Resize events give the size the renderer should present at. A paint event, with no draw,
 /// asks for a frame: when the platform shows part of the view again, and during a live resize on
 /// Windows and macOS, where presenting from the handler keeps the view up with the window's edge.
+///
+/// The renderer may present from any thread. cxui alone sizes the surface, on the UI thread, and
+/// then raises the resize event; a renderer that reads the size on its own thread may present one
+/// frame at the old size.
 [methodprefix cxuiRenderView] class CxUiRenderView extends CxUiCanvas {
     // The surface event said the surface is there, and hasn't yet said it is going
     bool _available;
