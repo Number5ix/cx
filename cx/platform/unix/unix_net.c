@@ -15,6 +15,7 @@
 
 #if defined(_PLATFORM_LINUX)
 #include "platform/unix/unix_net_epoll.h"
+#include <linux/errqueue.h>
 #elif defined(_PLATFORM_FBSD) || defined(_PLATFORM_MACOS)
 #include "platform/unix/unix_net_kqueue.h"
 #endif
@@ -554,6 +555,66 @@ bool netSockRecvInfo(NetSockHandle h, bool enable)
     ok = false;
 #endif
     return ok;
+}
+
+_Use_decl_annotations_
+uint32 netSockDrainErrors(NetSockHandle h, NetSockErrFn fn, void* ctx)
+{
+#if defined(NET_HAVE_ERRQUEUE)
+    uint32 n = 0;
+    for (;;) {
+        struct sockaddr_storage sa;
+        uint8 control[NET_CMSG_SPACE];
+        uint8 payload[1];   // the start of the packet that bounced; only the report matters
+        struct iovec iov = { .iov_base = payload, .iov_len = sizeof(payload) };
+
+        struct msghdr mh;
+        memset(&mh, 0, sizeof(mh));
+        memset(&sa, 0, sizeof(sa));
+        mh.msg_name       = &sa;
+        mh.msg_namelen    = sizeof(sa);
+        mh.msg_iov        = &iov;
+        mh.msg_iovlen     = 1;
+        mh.msg_control    = control;
+        mh.msg_controllen = sizeof(control);
+
+        if (recvmsg((int)h, &mh, MSG_ERRQUEUE | MSG_DONTWAIT) < 0)
+            break;   // queue empty
+        n++;
+
+        for (struct cmsghdr* cm = CMSG_FIRSTHDR(&mh); cm; cm = CMSG_NXTHDR(&mh, cm)) {
+            if (!(cm->cmsg_level == IPPROTO_IP && cm->cmsg_type == IP_RECVERR) &&
+                !(cm->cmsg_level == IPPROTO_IPV6 && cm->cmsg_type == IPV6_RECVERR))
+                continue;
+
+            struct sock_extended_err ee;
+            memcpy(&ee, CMSG_DATA(cm), sizeof(ee));
+            if (ee.ee_origin != SO_EE_ORIGIN_ICMP && ee.ee_origin != SO_EE_ORIGIN_ICMP6)
+                continue;
+
+            // Time exceeded arrives as EHOSTUNREACH; only the ICMP type tells it apart. Anything
+            // that is not an unreachable report (a path MTU update, for one) is not reported.
+            NetErrorCode err = mapErrnoError((int)ee.ee_errno);
+            if ((ee.ee_origin == SO_EE_ORIGIN_ICMP && ee.ee_type == 11) ||
+                (ee.ee_origin == SO_EE_ORIGIN_ICMP6 && ee.ee_type == 3))
+                err = NERR_TtlExpired;
+            if (!_netIsUnreachableErr(err))
+                continue;
+
+            // msg_name is the destination the bounced packet was sent to.
+            NetAddr peer;
+            if (!netAddrFromSockaddr(&peer, (struct sockaddr*)&sa))
+                memset(&peer, 0, sizeof(peer));
+            fn(ctx, &peer, err);
+        }
+    }
+    return n;
+#else
+    unused_noeval(h);
+    unused_noeval(fn);
+    unused_noeval(ctx);
+    return 0;
+#endif
 }
 
 _Use_decl_annotations_

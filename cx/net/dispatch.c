@@ -60,6 +60,8 @@ static NetEventCB pickHandler(const NetHandlers* h, NetEventType ev)
         return h->error;
     case NET_Timer:
         return h->timer;
+    case NET_PeerUnreachable:
+        return h->unreachable;
     }
 
     return NULL;
@@ -175,6 +177,8 @@ static strref netEventName(NetEventType ev)
         return _SL("error");
     case NET_Timer:
         return _SL("timer");
+    case NET_PeerUnreachable:
+        return _SL("unreachable");
     }
 
     return _SL("unknown");
@@ -441,6 +445,15 @@ static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow, bool gatedCtl
             // decode pass in netflow_filterStreamRecv.
             if (sock && ev.conn.err == NERR_None && saSize(flow->filters) > 0)
                 netflow_primeFilters(flow, q, sock);
+            continue;
+        }
+
+        if (msg->kind == NMSG_Unreachable) {
+            NetEvent ev           = { .event = NET_PeerUnreachable };
+            ev.unreachable.addr   = msg->addr;
+            ev.unreachable.err    = (NetErrorCode)msg->bytes;
+            netqueue_deliver(q, sock, flow, &ev);
+            netpoolFreeMsg(q->pool, &msg);
             continue;
         }
 

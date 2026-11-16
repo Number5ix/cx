@@ -133,19 +133,27 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
             // and the loop cannot spin on the same packet, and count it -- same policy as the
             // select backend's ingestDatagram().
             uint8 scratch[2048];
-            NetAddr src;
+            NetAddr src = { 0 };
             NetErrorCode err;
             intptr n = netSockRecvFrom(sock->handle, scratch, sizeof(scratch), &src, &err);
-            if (n < 0 && err != NERR_MessageTooLarge)
+            if (n < 0 && err != NERR_MessageTooLarge) {
+                if (netqueue_dgramRecvError(q, sock, &src, err))
+                    continue;
                 return;
+            }
             atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
             continue;
         }
 
         int n = recvmmsg((int)sock->handle, msgs, got, 0, NULL);
         if (n <= 0) {
-            // WouldBlock (drained) or a real error this pass; return every buffer reserved above.
+            // WouldBlock (drained) or a real error this pass; return every buffer reserved above. A
+            // pending unreachable report fails the call once without consuming a datagram, so the
+            // loop goes round again after delivering it.
+            NetErrorCode err = n < 0 ? netLastError() : NERR_WouldBlock;
             for (unsigned i = 0; i < got; i++) bufpoolPut(&q->pool->msgbuf, &bufs[i]);
+            if (netqueue_dgramRecvError(q, sock, NULL, err))
+                continue;
             return;
         }
 
@@ -314,6 +322,10 @@ static void epollPoll(_Inout_ NetQueueEpoll* self, int64 waitUs)
         } else {
             if (r) {
                 if (sock->type == NST_Datagram) {
+                    // A report on the error queue keeps EPOLLERR raised until it is taken, whether
+                    // or not a receive ever fails over it.
+                    if (events[i].events & EPOLLERR)
+                        netqueue_dgramDrainErrors(self, sock);
                     ingestDatagramBatch(self, sock);
                 } else {
                     uint32 st = atomicLoad(uint32, &sock->state, Relaxed);

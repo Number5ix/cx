@@ -396,6 +396,24 @@ abstract class NetQueue
     unbound bool _ingestDatagram([inout] NetSocket *sock, [in] NetAddr *peer,
         [in] [opt] const NetPktInfo *info, [inout] Buffer *buf);
 
+    // Report that the network could not deliver a datagram this socket sent to `peer` (an ICMP
+    // unreachable, or the platform's error for one). Delivers NET_PeerUnreachable on the peer's
+    // flow if it has one, else to the socket-level handlers inline. A connected socket always
+    // reports its connected peer. `flags` takes NET_UNREACH_* (net_private.h).
+    unbound void _peerUnreachable([inout] NetSocket *sock, [in] const NetAddr *peer,
+        NetErrorCode err, flags_t flags);
+
+    // A datagram receive on `sock` failed with `err`. Deals with the errors that belong to one
+    // datagram rather than the socket -- an oversized datagram is counted, an unreachable report is
+    // delivered -- and returns true if the backend should keep reading. `from` is whatever address
+    // the failed receive reported, if any. Every readiness backend's datagram loop calls this.
+    unbound bool _dgramRecvError([inout] NetSocket *sock, [in] [opt] const NetAddr *from,
+        NetErrorCode err);
+
+    // Deliver every unreachable report waiting on the socket's error queue (see
+    // netSockDrainErrors). Returns how many were taken; always 0 without an error queue.
+    unbound uint32 _dgramDrainErrors([inout] NetSocket *sock);
+
     // Hand a message to a flow and make sure something will come along to run it. Takes ownership
     // of the message. `self` may be NULL, in which case the message is simply released.
     [extern] unbound void _submit([inout] NetFlow *flow, [inout] NetMessage *msg);

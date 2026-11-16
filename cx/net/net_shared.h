@@ -266,6 +266,9 @@ typedef enum {
 
     /// A datagram was larger than the buffer it was read into, and was dropped
     NERR_MessageTooLarge    = 13,
+
+    /// A packet's time to live ran out before it reached its destination
+    NERR_TtlExpired         = 14,
 } NetErrorCode;
 
 /// Network address types
@@ -596,7 +599,28 @@ typedef enum {
     ///
     /// A timer never fires after its flow's NET_FlowClosed: teardown cancels everything the flow
     /// still had armed.
-    NET_Timer
+    NET_Timer,
+
+    /// @brief A datagram sent from this socket could not be delivered to its peer
+    ///
+    /// The network reported the peer unreachable, usually because nothing is listening on that
+    /// port any more (a server that restarted, a client that went away). NetEvent.unreachable.addr
+    /// is the peer and NetEvent.unreachable.err the reason:
+    /// - NERR_ConnectionRefused: nothing is listening on the peer's port
+    /// - NERR_HostUnreachable / NERR_NetworkUnreachable: no route to the peer
+    /// - NERR_TtlExpired: the datagram's time to live ran out on the way
+    ///
+    /// This is a report, not a teardown: the flow and the socket stay open, and what to do about
+    /// the peer is up to the application. Delivered on the peer's flow when it has one; otherwise to
+    /// the socket or queue handlers with NetEvent.flow NULL, inline on the ingest thread like
+    /// NET_FlowRefused.
+    ///
+    /// Which sockets report this depends on the platform. A connected datagram socket (see
+    /// netsocketConnect()) reports on every platform. An unconnected one reports on Windows and
+    /// Linux only; on Windows the port in the address may be 0, since the system does not always
+    /// say which port was unreachable.
+    /// @note Datagram sockets only.
+    NET_PeerUnreachable
 } NetEventType;
 
 /// Network Event Structure
@@ -669,6 +693,12 @@ typedef struct NetEvent {
         struct {
             NetTimerId id;   ///< Which of the flow's armed timers reached its deadline
         } timer;
+
+        /// NET_PeerUnreachable
+        struct {
+            NetAddr addr;       ///< The peer that could not be reached
+            NetErrorCode err;   ///< Why: refused, host or network unreachable, or TTL expired
+        } unreachable;
     };
 } NetEvent;
 
@@ -689,6 +719,7 @@ typedef struct NetHandlers {
     NetEventCB flowClosed;   ///< NET_FlowClosed: release state hanging off flow->user
     NetEventCB error;        ///< NET_Error: a queued send failed asynchronously
     NetEventCB timer;        ///< NET_Timer: a timer armed on the flow reached its deadline
+    NetEventCB unreachable;  ///< NET_PeerUnreachable: a datagram's peer could not be reached
 } NetHandlers;
 
 /// Called with a socket that is about to dial, before the connect starts

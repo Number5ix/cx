@@ -187,6 +187,43 @@ static NetErrorCode mapCompletionError(DWORD err)
     }
 }
 
+// Datagram receive flavor: what an unreachable report says about the peer, or NERR_None for a failure
+// that is not one. Winsock reports an ICMP error for a datagram this socket sent by failing one of its
+// receives, synchronously (WSAE* codes) or on completion (the NT spellings).
+static NetErrorCode mapDgramRecvError(DWORD err)
+{
+    switch (err) {
+    case WSAECONNRESET:
+    case ERROR_PORT_UNREACHABLE:
+    case ERROR_CONNECTION_REFUSED:
+        return NERR_ConnectionRefused;
+    case WSAEHOSTUNREACH:
+    case ERROR_HOST_UNREACHABLE:
+        return NERR_HostUnreachable;
+    case WSAENETUNREACH:
+    case ERROR_NETWORK_UNREACHABLE:
+        return NERR_NetworkUnreachable;
+    case WSAENETRESET:
+        return NERR_TtlExpired;
+    default:
+        return NERR_None;
+    }
+}
+
+// Report the peer a failed datagram receive says was unreachable. The address is whatever Winsock
+// left in the op; it does not reliably include the port.
+static void reportRecvError(_Inout_ NetQueueWinIOCP* self, _Inout_ IocpOp* op, DWORD err)
+{
+    NetErrorCode e = mapDgramRecvError(err);
+    if (e == NERR_None)
+        return;
+
+    NetAddr peer;
+    if (!netAddrFromSockaddr(&peer, (struct sockaddr*)&op->from))
+        memset(&peer, 0, sizeof(peer));
+    netqueue_peerUnreachable(self, op->sock, &peer, e, NET_UNREACH_ANYPORT);
+}
+
 // Connect flavor: anything a failed ConnectEx completes with that the mapping does not recognize is
 // reported as refused, the common cause.
 static NetErrorCode mapConnectError(DWORD err)
@@ -328,7 +365,9 @@ static int postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
     for (int i = 0; we != 0 && i < IOCP_RECV_RETRIES; i++) {
         if (we == WSAEMSGSIZE)
             atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
-        else if (we != WSAECONNRESET && we != WSAENETRESET)
+        else if (we == WSAECONNRESET || we == WSAENETRESET)
+            reportRecvError(self, op, (DWORD)we);
+        else
             break;
         we = issueRecvFrom(op, sock);
     }
@@ -665,10 +704,13 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
 
             if (op->buf)   // unrecognized source family; ingest did not take it
                 bufpoolPut(&q->pool->msgbuf, &op->buf);
-        } else if (!ok && !aborted && !shutting && !closed &&
-                   (err == ERROR_MORE_DATA || err == WSAEMSGSIZE)) {
-            // Larger than the buffer. The kernel delivers a truncated datagram; drop it whole.
-            atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+        } else if (!ok && !aborted && !shutting && !closed) {
+            if (err == ERROR_MORE_DATA || err == WSAEMSGSIZE) {
+                // Larger than the buffer. The kernel delivers a truncated datagram; drop it whole.
+                atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+            } else {
+                reportRecvError(self, op, err);
+            }
         }
 
         if (op->buf)

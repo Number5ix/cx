@@ -296,16 +296,39 @@ intptr netSockRecv(NetSockHandle h, void* buf, size_t len, NetErrorCode* err)
     return n;   // 0 means the peer closed the connection cleanly
 }
 
+// A failed datagram receive. Winsock reports an ICMP error for a datagram this socket sent as a
+// failed receive -- port unreachable as WSAECONNRESET, time exceeded as WSAENETRESET -- along with
+// the address the datagram was sent to, so translate both into what an unreachable report says.
+static NetErrorCode dgramRecvError(int e, const struct sockaddr_storage* sa, NetAddr* from)
+{
+    NetErrorCode err;
+    switch (e) {
+    case WSAECONNRESET:
+        err = NERR_ConnectionRefused;
+        break;
+    case WSAENETRESET:
+        err = NERR_TtlExpired;
+        break;
+    default:
+        return _netMapWsaError(e);
+    }
+
+    if (from && !netAddrFromSockaddr(from, (const struct sockaddr*)sa))
+        memset(from, 0, sizeof(*from));
+    return err;
+}
+
 _Use_decl_annotations_
 intptr netSockRecvFrom(NetSockHandle h, void* buf, size_t len, NetAddr* from, NetErrorCode* err)
 {
     struct sockaddr_storage sa;
     int salen = sizeof(sa);
+    memset(&sa, 0, sizeof(sa));
 
     int n = recvfrom((SOCKET)h, (char*)buf, (int)min(len, INT_MAX), 0, (struct sockaddr*)&sa,
                      &salen);
     if (n == SOCKET_ERROR) {
-        *err = netLastError();
+        *err = dgramRecvError(WSAGetLastError(), &sa, from);
         return -1;
     }
 
@@ -506,6 +529,7 @@ intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, 
         char control[NET_CMSG_SPACE];
         WSAMSG mh;
         memset(&mh, 0, sizeof(mh));
+        memset(&sa, 0, sizeof(sa));
         mh.name             = (struct sockaddr*)&sa;
         mh.namelen          = sizeof(sa);
         mh.lpBuffers        = &iov;
@@ -515,7 +539,7 @@ intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, 
 
         DWORD got = 0;
         if (netRecvMsgFn((SOCKET)h, &mh, &got, NULL, NULL) == SOCKET_ERROR) {
-            *err = netLastError();
+            *err = dgramRecvError(WSAGetLastError(), &sa, from);
             memset(info, 0, sizeof(*info));
             return -1;
         }
@@ -618,6 +642,16 @@ bool netSockRecvInfo(NetSockHandle h, bool enable)
     unused_noeval(enable);
     return false;
 #endif
+}
+
+// No error queue here: a failed receive is itself the report.
+_Use_decl_annotations_
+uint32 netSockDrainErrors(NetSockHandle h, NetSockErrFn fn, void* ctx)
+{
+    unused_noeval(h);
+    unused_noeval(fn);
+    unused_noeval(ctx);
+    return 0;
 }
 
 _Use_decl_annotations_

@@ -504,6 +504,10 @@ static const testspec tests[] = {
     { "netselect: Stream Backpressure", "nettest", "select_stream_backpressure" },
     { "netselect: Oversized Datagram", "nettest", "select_udp_oversize" },
     { "netselect: Receive After ICMP Errors", "nettest", "select_udp_unreachable_live" },
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+    { "netselect: Peer Unreachable", "nettest", "select_udp_unreachable" },
+    { "netselect: Peer Unreachable Without Flow", "nettest", "select_udp_unreachable_noflow" },
+#endif
     { "netselect: Connect", "nettest", "select_connect" },
     { "netselect: Connect DNS", "nettest", "select_connect_dns" },
     { "netselect: Connect Refused", "nettest", "select_connect_refused" },
@@ -526,6 +530,8 @@ static const testspec tests[] = {
     { "netiocp: Stream Backpressure", "nettest", "iocp_stream_backpressure" },
     { "netiocp: Oversized Datagram", "nettest", "iocp_udp_oversize" },
     { "netiocp: Receive After ICMP Errors", "nettest", "iocp_udp_unreachable_live" },
+    { "netiocp: Peer Unreachable", "nettest", "iocp_udp_unreachable" },
+    { "netiocp: Peer Unreachable Without Flow", "nettest", "iocp_udp_unreachable_noflow" },
     { "netiocp: Connect", "nettest", "iocp_connect" },
     { "netiocp: Connect DNS", "nettest", "iocp_connect_dns" },
     { "netiocp: Connect Refused", "nettest", "iocp_connect_refused" },
@@ -541,6 +547,8 @@ static const testspec tests[] = {
     { "netepoll: Threaded Stream Loopback", "nettest", "epoll_stream_threaded" },
     { "netepoll: Oversized Datagram", "nettest", "epoll_udp_oversize" },
     { "netepoll: Receive After ICMP Errors", "nettest", "epoll_udp_unreachable_live" },
+    { "netepoll: Peer Unreachable", "nettest", "epoll_udp_unreachable" },
+    { "netepoll: Peer Unreachable Without Flow", "nettest", "epoll_udp_unreachable_noflow" },
     { "netepoll: Connect", "nettest", "epoll_connect" },
     { "netepoll: Connect DNS", "nettest", "epoll_connect_dns" },
     { "netepoll: Connect Refused", "nettest", "epoll_connect_refused" },

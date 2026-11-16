@@ -129,6 +129,10 @@ abstract class NetSocket
     // readiness backends.
     atomic[uint32] recvPosted;
 
+    // An unreachable report (NetErrorCode) a datagram send absorbed while holding sendLock, for
+    // whoever drops the lock to deliver. See dgramSendTo() in dataplane.c.
+    atomic[uint32] sendUnreach;
+
     /// @brief Per-socket handler overrides, optional
     ///
     /// Resolved per field between the flow's set and the queue-wide set; see @ref net_handlers.

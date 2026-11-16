@@ -61,6 +61,31 @@ static void flushStreamBytes(NetSocket* sock, NetErrorCode* err)
     }
 }
 
+// Send one datagram. An unreachable report still pending for an earlier datagram can fail this send
+// without it having gone anywhere -- Linux does this while the report waits on the error queue, the
+// BSDs for a connected socket -- so retry once. Where the failed send was the only sign of the
+// report, it is left in sendUnreach for reportSendUnreach() once sendLock is dropped.
+static intptr dgramSendTo(NetSocket* sock, const uint8* data, size_t len, const NetAddr* dest,
+                          const NetPktInfo* info, NetErrorCode* err)
+{
+    intptr n = netSockSendToEx(sock->handle, data, len, dest, info, err);
+    if (n < 0 && _netIsUnreachableErr(*err)) {
+#if !defined(NET_HAVE_ERRQUEUE)
+        atomicStore(uint32, &sock->sendUnreach, (uint32)*err, Relaxed);
+#endif
+        n = netSockSendToEx(sock->handle, data, len, dest, info, err);
+    }
+    return n;
+}
+
+// Deliver a report dgramSendTo() absorbed. Never called with sendLock held.
+static void reportSendUnreach(NetQueue* q, NetSocket* sock)
+{
+    uint32 e = atomicExchange(uint32, &sock->sendUnreach, 0, Relaxed);
+    if (e && q)
+        netqueue_peerUnreachable(q, sock, &sock->remote, (NetErrorCode)e, 0);
+}
+
 // Drain queued datagrams to their destinations. Peek before pop so a datagram the OS will not
 // accept stays at the head in order; a fatal per-datagram error drops that one and keeps draining.
 // Runs under sendLock, which is the only thing that touches the datagram send queue, so peek/pop is
@@ -77,8 +102,7 @@ static void flushDgramBytes(NetQueue* q, NetSocket* sock, NetErrorCode* err, Net
 
         size_t len = m->buf ? m->buf->len : 0;
         NetErrorCode e;
-        intptr n = netSockSendToEx(sock->handle, m->buf ? m->buf->data : NULL, len, &m->addr,
-                                   &m->info, &e);
+        intptr n = dgramSendTo(sock, m->buf ? m->buf->data : NULL, len, &m->addr, &m->info, &e);
         if (n < 0 && e == NERR_WouldBlock)
             break;   // send buffer full; leave this datagram queued at the head
 
@@ -185,6 +209,8 @@ void NetSocket__flushSend(_In_ NetSocket* self, _In_opt_ NetQueue* q)
     withMutex (&self->sendLock) {
         ready = flushLocked(q, self, &err, &eaddr);
     }
+    if (self->type == NST_Datagram)
+        reportSendUnreach(q, self);
     if (err != NERR_None)
         netsocket_sendError(self, q, err, &eaddr);
     if (ready)
@@ -300,7 +326,7 @@ static bool dgramSendMsg(NetQueue* q, NetSocket* sock, NetMessage* msg, bool* wa
             uint8* data = msg->buf ? msg->buf->data : NULL;
             size_t len  = msg->buf ? msg->buf->len : 0;
             NetErrorCode e;
-            intptr n = netSockSendToEx(sock->handle, data, len, &msg->addr, &msg->info, &e);
+            intptr n = dgramSendTo(sock, data, len, &msg->addr, &msg->info, &e);
             if (n >= 0)
                 ret = true;   // went straight out, nothing queued
             else if (e == NERR_WouldBlock)
@@ -317,6 +343,7 @@ static bool dgramSendMsg(NetQueue* q, NetSocket* sock, NetMessage* msg, bool* wa
 
     if (msg)
         netpoolFreeMsg(_netqueuePool(q), &msg);
+    reportSendUnreach(q, sock);
 
     return ret;
 }
@@ -327,7 +354,8 @@ static bool sendDgramRaw(NetQueue* q, NetSocket* sock, const uint8* data, size_t
 {
     if (immediate) {
         NetErrorCode e;
-        intptr n = netSockSendToEx(sock->handle, data, len, dest, info, &e);
+        intptr n = dgramSendTo(sock, data, len, dest, info, &e);
+        reportSendUnreach(q, sock);
         return n >= 0 && (size_t)n == len;
     }
 

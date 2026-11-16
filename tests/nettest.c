@@ -15,6 +15,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include "platform/win/win_net_socket.h"   // netsocketwinWrap, to drive an accepted stream socket
+#include <cx/platform/win/win_os.h>         // osIsWine
 #elif defined(_PLATFORM_UNIX) || defined(_PLATFORM_WASM)
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -142,6 +143,10 @@ typedef struct Recorder {
     uint32 timerCount;
     NetTimerId lastTimerId;
     NetPktInfo lastInfo;   // what the IP layer carried with the most recent datagram
+    uint32 unreachCount;
+    NetErrorCode unreachErr;
+    NetAddr unreachAddr;
+    NetFlow* unreachFlow;   // compared only, never dereferenced
 } Recorder;
 
 static void onConnect(NetEvent* ev)
@@ -1993,6 +1998,97 @@ static int dgramSurvivesUnreachableBody(MakeDgramQueueFn make)
     return ret;
 }
 
+// Wine reports no ICMP errors on datagram sockets at all.
+static bool noIcmpReports(void)
+{
+#if defined(_PLATFORM_WIN)
+    return osIsWine();
+#else
+    return false;
+#endif
+}
+
+static void onUnreachable(NetEvent* ev)
+{
+    Recorder* r = (Recorder*)ev->ctx;
+    r->unreachCount++;
+    r->unreachErr  = ev->unreachable.err;
+    r->unreachAddr = ev->unreachable.addr;
+    r->unreachFlow = ev->flow;
+}
+
+static void tickUntilUnreach(NetQueue* q, Recorder* r)
+{
+    int64 deadline = clockTimer() + timeS(2);
+    while (r->unreachCount == 0 && clockTimer() < deadline)
+        netqueueTick(q, timeMS(50));
+}
+
+// An unconnected datagram socket sends to a closed port and hears NET_PeerUnreachable for it --
+// on the peer's flow when it has one, otherwise at socket level with the address -- and then goes
+// on receiving normally.
+static int dgramUnreachableBody(MakeDgramQueueFn make, bool withFlow)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onDgramRecv, .unreachable = onUnreachable };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    NetQueue* q = make(&conf);
+    if (!q)
+        return 0;   // backend unavailable here (IOCP under Wine): skip
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    uint16 rport     = 0;
+    NetSocket* rsock = boundDgramSocket(q, &rport);
+    if (!rsock) {
+        objRelease(&q);
+        TEST_FAIL(1, _SL("could not create a bound datagram socket"), stvNone);
+    }
+
+    NetAddr dead  = loopbackAddr(closedUdpPort());
+    NetFlow* flow = withFlow ? netqueuePromoteFlow(q, rsock, &dead) : NULL;
+    if (withFlow && !flow)
+        TEST_FAILV(ret, 1, _SL("netqueuePromoteFlow() failed"), stvNone);
+
+    netsocketSend(rsock, (const uint8*)"x", 1, &dead, 0);
+    tickUntilUnreach(q, &rec);
+
+    if (rec.unreachCount == 0) {
+        TEST_FAILV(ret, 1, _SL("no NET_PeerUnreachable after sending to a closed port"), stvNone);
+    } else {
+        if (rec.unreachErr != NERR_ConnectionRefused)
+            TEST_FAILV(ret, 1, _SL("unreachable err=${int}, expected NERR_ConnectionRefused"),
+                       stvar(int32, rec.unreachErr));
+        if (rec.unreachFlow != flow)
+            TEST_FAILV(ret, 1, _SL("unreachable delivered on the wrong flow (withFlow=${bool})"),
+                       stvar(bool, withFlow));
+        // Windows does not always say which port bounced; the address and family it does.
+        if (rec.unreachAddr.type != NA_IPv4 ||
+            memcmp(rec.unreachAddr.ipv4, dead.ipv4, sizeof(dead.ipv4)) != 0 ||
+            (rec.unreachAddr.port != dead.port && rec.unreachAddr.port != 0))
+            TEST_FAILV(ret, 1, _SL("unreachable addr port ${uint}, expected ${uint}"),
+                       stvar(uint16, rec.unreachAddr.port), stvar(uint16, dead.port));
+    }
+
+    uint16 sport = 0;
+    SOCKET snd   = rawUdpSocket(&sport);
+    rawUdpSendTo(snd, "L", 1, rport);
+    tickUntil(q, &rec, 1);
+    if (rec.recvCount != 1)
+        TEST_FAILV(ret, 1, _SL("no datagram received after the unreachable report"), stvNone);
+
+    objRelease(&flow);
+    closesocket(snd);
+    netsocketClose(rsock);
+    objRelease(&rsock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Connect path: the client half, over real loopback sockets, on both backends. A
 // NetSocket connects out; netsocketConnect() resolves (or takes the literal), tries each address in
@@ -2727,6 +2823,23 @@ static int test_nettest_select_udp_unreachable_live(void)
 {
     return dgramSurvivesUnreachableBody(makeSelectDgramQueue);
 }
+
+// Unconnected sockets hear about unreachable peers on Windows and Linux only. Wine reports nothing.
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+static int test_nettest_select_udp_unreachable(void)
+{
+    if (noIcmpReports())
+        return 0;
+    return dgramUnreachableBody(makeSelectDgramQueue, true);
+}
+
+static int test_nettest_select_udp_unreachable_noflow(void)
+{
+    if (noIcmpReports())
+        return 0;
+    return dgramUnreachableBody(makeSelectDgramQueue, false);
+}
+#endif
 
 // A connected loopback TCP pair: bytes sent on the client end are ingested into the server
 // socket's receive ring and delivered through recvMsgs()/recv() intact.
@@ -3620,6 +3733,20 @@ static int test_nettest_iocp_udp_unreachable_live(void)
     return dgramSurvivesUnreachableBody(makeIocpDgramQueue);
 }
 
+static int test_nettest_iocp_udp_unreachable(void)
+{
+    if (noIcmpReports())
+        return 0;
+    return dgramUnreachableBody(makeIocpDgramQueue, true);
+}
+
+static int test_nettest_iocp_udp_unreachable_noflow(void)
+{
+    if (noIcmpReports())
+        return 0;
+    return dgramUnreachableBody(makeIocpDgramQueue, false);
+}
+
 // A connected loopback TCP pair: bytes arrive on a single outstanding WSARecv, land in the socket's
 // ring via reserve/commit, and are delivered through recv() intact -- drained by tick().
 static int test_nettest_iocp_stream(void)
@@ -4305,6 +4432,16 @@ static int test_nettest_epoll_udp_oversize(void)
 static int test_nettest_epoll_udp_unreachable_live(void)
 {
     return dgramSurvivesUnreachableBody(makeEpollDgramQueue);
+}
+
+static int test_nettest_epoll_udp_unreachable(void)
+{
+    return dgramUnreachableBody(makeEpollDgramQueue, true);
+}
+
+static int test_nettest_epoll_udp_unreachable_noflow(void)
+{
+    return dgramUnreachableBody(makeEpollDgramQueue, false);
 }
 
 // A connected loopback TCP pair over epoll's polled tick(), mirroring test_nettest_select_stream.
@@ -5346,7 +5483,12 @@ int test_nettest_grp_select_loopback(void)
 
 int test_nettest_grp_select_dgram(void)
 {
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live,
+               test_nettest_select_udp_unreachable, test_nettest_select_udp_unreachable_noflow);
+#else
     TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live);
+#endif
 }
 
 int test_nettest_grp_select_connect(void)
@@ -5378,7 +5520,8 @@ int test_nettest_grp_iocp_loopback(void)
 
 int test_nettest_grp_iocp_dgram(void)
 {
-    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live);
+    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live,
+               test_nettest_iocp_udp_unreachable, test_nettest_iocp_udp_unreachable_noflow);
 }
 
 int test_nettest_grp_iocp_connect(void)
@@ -5400,7 +5543,8 @@ int test_nettest_grp_epoll_loopback(void)
 
 int test_nettest_grp_epoll_dgram(void)
 {
-    TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live);
+    TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live,
+               test_nettest_epoll_udp_unreachable, test_nettest_epoll_udp_unreachable_noflow);
 }
 
 int test_nettest_grp_epoll_connect(void)
@@ -5494,6 +5638,10 @@ testfunc nettest_funcs[] = {
     { "grp_filterdgram",            test_nettest_grp_filterdgram            },
     { "select_udp_oversize",        test_nettest_select_udp_oversize        },
     { "select_udp_unreachable_live", test_nettest_select_udp_unreachable_live },
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+    { "select_udp_unreachable",     test_nettest_select_udp_unreachable     },
+    { "select_udp_unreachable_noflow", test_nettest_select_udp_unreachable_noflow },
+#endif
     { "grp_select_dgram",           test_nettest_grp_select_dgram           },
     { "grp_select_loopback",        test_nettest_grp_select_loopback        },
     { "grp_select_connect",         test_nettest_grp_select_connect         },
@@ -5515,6 +5663,8 @@ testfunc nettest_funcs[] = {
     { "iocp_accept_auto",           test_nettest_iocp_accept_auto           },
     { "iocp_udp_oversize",          test_nettest_iocp_udp_oversize          },
     { "iocp_udp_unreachable_live",  test_nettest_iocp_udp_unreachable_live  },
+    { "iocp_udp_unreachable",       test_nettest_iocp_udp_unreachable       },
+    { "iocp_udp_unreachable_noflow", test_nettest_iocp_udp_unreachable_noflow },
     { "grp_iocp_dgram",             test_nettest_grp_iocp_dgram             },
     { "grp_iocp_loopback",          test_nettest_grp_iocp_loopback          },
     { "grp_iocp_connect",           test_nettest_grp_iocp_connect           },
@@ -5533,6 +5683,8 @@ testfunc nettest_funcs[] = {
     { "epoll_accept_auto",          test_nettest_epoll_accept_auto          },
     { "epoll_udp_oversize",         test_nettest_epoll_udp_oversize         },
     { "epoll_udp_unreachable_live", test_nettest_epoll_udp_unreachable_live },
+    { "epoll_udp_unreachable",      test_nettest_epoll_udp_unreachable      },
+    { "epoll_udp_unreachable_noflow", test_nettest_epoll_udp_unreachable_noflow },
     { "grp_epoll_dgram",            test_nettest_grp_epoll_dgram            },
     { "grp_epoll_loopback",         test_nettest_grp_epoll_loopback         },
     { "grp_epoll_connect",          test_nettest_grp_epoll_connect          },

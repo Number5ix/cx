@@ -35,6 +35,22 @@ static void setNoDelay(int fd)
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 }
 
+// Have the kernel report ICMP errors for this datagram socket's packets, which Linux otherwise does
+// only for a connected socket. They arrive on the socket's error queue; see netSockDrainErrors().
+static void setRecvErr(int fd, int af)
+{
+#if defined(NET_HAVE_ERRQUEUE)
+    int one = 1;
+    if (af == AF_INET6)
+        setsockopt(fd, IPPROTO_IPV6, IPV6_RECVERR, &one, sizeof(one));
+    else
+        setsockopt(fd, IPPROTO_IP, IP_RECVERR, &one, sizeof(one));
+#else
+    unused_noeval(fd);
+    unused_noeval(af);
+#endif
+}
+
 _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
 {
     NetSocketPosix* self;
@@ -52,6 +68,8 @@ _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
         setNonBlocking(self->fd);
         if (type == NST_Stream)
             setNoDelay(self->fd);
+        else
+            setRecvErr(self->fd, AF_INET);
     }
 
     if (self->fd < 0 || !objInstInit(self)) {

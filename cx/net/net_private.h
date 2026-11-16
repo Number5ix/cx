@@ -135,6 +135,30 @@ bool netSockRecvInfo(NetSockHandle h, bool enable);
 // measures the path with. Returns false if the platform cannot.
 bool netSockDontFragment(NetSockHandle h, bool enable);
 
+// Datagram receive and send errors that stand for a packet the network could not deliver (an ICMP
+// unreachable or time exceeded), as the receive shims report them.
+_meta_inline bool _netIsUnreachableErr(NetErrorCode err)
+{
+    return err == NERR_ConnectionRefused || err == NERR_HostUnreachable ||
+           err == NERR_NetworkUnreachable || err == NERR_TtlExpired;
+}
+
+// Linux keeps the ICMP errors for a datagram socket's packets on a separate error queue (with
+// IP_RECVERR, which every datagram socket sets), each with the destination it was for. A failed
+// receive or send is then only the kernel saying a report is waiting there, and the report itself
+// comes from netSockDrainErrors(). Elsewhere the failed call is the report.
+#if defined(_PLATFORM_LINUX)
+#define NET_HAVE_ERRQUEUE 1
+#endif
+
+// Called once per report netSockDrainErrors() takes off a socket's error queue.
+typedef void (*NetSockErrFn)(_In_opt_ void* ctx, _In_ const NetAddr* peer, NetErrorCode err);
+
+// Take every queued error off a datagram socket's error queue, calling `fn` for each one that says a
+// peer was unreachable. Returns how many were taken. Without NET_HAVE_ERRQUEUE there is no queue and
+// this returns 0.
+uint32 netSockDrainErrors(NetSockHandle h, _In_ NetSockErrFn fn, _In_opt_ void* ctx);
+
 // ---------------------------------------------------------------------------------------------
 // Select set (NetSelectSet)
 //
@@ -194,6 +218,10 @@ void nselWake(_Inout_ NetSelectSet* set);
 // here.
 // ---------------------------------------------------------------------------------------------
 
+// netqueue_peerUnreachable() flag: the platform reports the peer's address but not reliably its
+// port, so a peer with no exact flow match is matched on its address alone when only one flow has it.
+#define NET_UNREACH_ANYPORT 0x01
+
 // What a NetMessage represents (stored in NetMessage.kind). Everything except NMSG_Data is
 // internal plumbing riding the flow inbox so its event lands on a worker, ordered behind the
 // packets already queued for the flow; drainFlow() translates each into a NetEvent and retires
@@ -209,8 +237,10 @@ typedef enum {
     NMSG_FlowOpen     = 6,   // the flow was just created; deliver NET_FlowOpen ahead of its first packet
     NMSG_FilterNotify = 7,   // a filter raised a notification off-worker; deliver NET_FilterNotify
                              // (NetFilterNotify in `bytes`)
-    NMSG_Timer        = 8    // an application timer reached its deadline; deliver NET_Timer
+    NMSG_Timer        = 8,   // an application timer reached its deadline; deliver NET_Timer
                              // (NetTimerId in `timerId`)
+    NMSG_Unreachable  = 9    // the peer was reported unreachable; deliver NET_PeerUnreachable
+                             // (peer in `addr`, NetErrorCode in `bytes`)
 } NetMessageKind;
 
 // Bits in NetMessage.flags. The only thing the message layer needs to remember about a payload is

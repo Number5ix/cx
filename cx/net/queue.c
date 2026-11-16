@@ -593,6 +593,112 @@ bool NetQueue__ingestDatagram(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
     return true;
 }
 
+// Whether two addresses name the same host, ignoring the port.
+static bool sameHost(_In_ const NetAddr* a, _In_ const NetAddr* b)
+{
+    if (a->type != b->type)
+        return false;
+    if (a->type == NA_IPv4)
+        return memcmp(a->ipv4, b->ipv4, sizeof(a->ipv4)) == 0;
+    if (a->type == NA_IPv6)
+        return memcmp(a->ipv6, b->ipv6, sizeof(a->ipv6)) == 0 && a->scope == b->scope;
+    return false;
+}
+
+void NetQueue__peerUnreachable(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_ const NetAddr* peer, NetErrorCode err, flags_t flags)
+{
+    // A routed socket demultiplexes on something other than the peer address, so its flow table
+    // says nothing about who this was, and the socket itself belongs to the code that installed the
+    // route rather than to the application.
+    if (sock->route || sock->type != NST_Datagram || _netqueueShuttingDown(self))
+        return;
+
+    // A connected socket can only have sent to its one peer, whatever the platform reported.
+    NetAddr target = sock->remote.type != NA_Unknown ? sock->remote : *peer;
+
+    NetFlow* flow = NULL;
+    withReadLock (&sock->flowLock) {
+        htelem e = htFind(sock->flows, NetAddr, target, none, NULL);
+        if (e) {
+            NetFlow* f = (NetFlow*)hteVal(sock->flows, object, e);
+            if (f)
+                flow = objAcquire(f);
+        } else if ((flags & NET_UNREACH_ANYPORT) && target.type != NA_Unknown) {
+            NetFlow* match = NULL;
+            uint32 n       = 0;
+            foreach (hashtable, hti, sock->flows) {
+                NetFlow* f = (NetFlow*)htiVal(object, hti);
+                if (f && sameHost(&f->peer, &target)) {
+                    match = f;
+                    n++;
+                }
+            }
+            if (n == 1)
+                flow = objAcquire(match);
+        }
+    }
+
+    if (flow) {
+        NetMessage* msg = netpoolAllocHeader(self->pool);
+        msg->kind       = NMSG_Unreachable;
+        msg->addr       = flow->peer;
+        msg->bytes      = (size_t)err;
+        netqueue_submit(self, flow, msg);
+        objRelease(&flow);
+        return;
+    }
+
+    if (flags & NET_UNREACH_ANYPORT)
+        target.port = 0;
+
+    NetEvent ev         = { .event = NET_PeerUnreachable };
+    ev.unreachable.addr = target;
+    ev.unreachable.err  = err;
+    netqueue_deliver(self, sock, NULL, &ev);
+}
+
+typedef struct DrainCtx {
+    NetQueue* q;
+    NetSocket* sock;
+} DrainCtx;
+
+static void drainReport(void* ctx, const NetAddr* peer, NetErrorCode err)
+{
+    DrainCtx* d = (DrainCtx*)ctx;
+    netqueue_peerUnreachable(d->q, d->sock, peer, err, 0);
+}
+
+uint32 NetQueue__dgramDrainErrors(_In_ NetQueue* self, _Inout_ NetSocket* sock)
+{
+    DrainCtx d = { .q = self, .sock = sock };
+    return netSockDrainErrors(sock->handle, drainReport, &d);
+}
+
+bool NetQueue__dgramRecvError(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_opt_ const NetAddr* from, NetErrorCode err)
+{
+    if (err == NERR_MessageTooLarge) {
+        atomicFetchAdd(uint32, &self->droppedOversize, 1, Relaxed);
+        return true;
+    }
+    if (!_netIsUnreachableErr(err))
+        return false;
+
+#if defined(NET_HAVE_ERRQUEUE)
+    // The error queue holds this report along with the address it was for; the failed receive
+    // only says one is waiting.
+    if (netqueue_dgramDrainErrors(self, sock) > 0)
+        return true;
+#endif
+
+    NetAddr unknown = { 0 };
+#if defined(_PLATFORM_WIN)
+    netqueue_peerUnreachable(self, sock, from ? from : &unknown, err, NET_UNREACH_ANYPORT);
+#else
+    netqueue_peerUnreachable(self, sock, from ? from : &unknown, err, 0);
+#endif
+    return true;
+}
+
 // Autogen begins -----
 // clang-format off
 void NetQueue__submit(_In_ NetQueue* self, _Inout_ NetFlow* flow, _Inout_ NetMessage* msg);

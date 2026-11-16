@@ -282,6 +282,16 @@ bool netSockRecvInfo(NetSockHandle h, bool enable)
     return false;
 }
 
+// No error queue here: a failed receive is itself the report.
+_Use_decl_annotations_
+uint32 netSockDrainErrors(NetSockHandle h, NetSockErrFn fn, void* ctx)
+{
+    unused_noeval(h);
+    unused_noeval(fn);
+    unused_noeval(ctx);
+    return 0;
+}
+
 _Use_decl_annotations_
 bool netSockDontFragment(NetSockHandle h, bool enable)
 {
