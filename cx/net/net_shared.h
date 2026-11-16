@@ -263,6 +263,9 @@ typedef enum {
     ///
     /// Unix only in practice; the caller should simply retry. Windows has no equivalent.
     NERR_Interrupted        = 12,
+
+    /// A datagram was larger than the buffer it was read into, and was dropped
+    NERR_MessageTooLarge    = 13,
 } NetErrorCode;
 
 /// Network address types

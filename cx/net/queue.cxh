@@ -61,7 +61,10 @@ abstract class NetQueue
     /// unreliable" into "the buffer pool is too small or a callback is too slow" right away.
     atomic[uint32] droppedNoBuf;
 
-    atomic[uint32] nflows;   ///< Flows currently live across every socket on this queue
+    /// @brief Datagrams dropped for being larger than a receive buffer (see recvBufSize)
+    atomic[uint32] droppedOversize;
+
+    atomic[uint32] nflows;  ///< Flows currently live across every socket on this queue
 
     /// @brief Armed timers across every flow on this queue, kept as a min-heap ordered by deadline
     ///
@@ -338,6 +341,14 @@ abstract class NetQueue
     ///
     /// @return Monotonic count of dropped datagrams since the queue was created
     unbound uint32 droppedNoBuf();
+
+    /// Datagrams dropped for being larger than a receive buffer
+    ///
+    /// Such a datagram is never delivered, in whole or in part. A nonzero count means a peer is
+    /// sending more than NetQueueConfig::recvBufSize allows.
+    ///
+    /// @return Monotonic count of dropped datagrams since the queue was created
+    unbound uint32 droppedOversize();
 
     // -----------------------------------------------------------------------------------------
     // PRIVATE IMPLEMENTATION DETAILS

@@ -85,7 +85,8 @@ intptr netSockRecv(NetSockHandle h, _Out_writes_bytes_(len) void* buf, size_t le
                    _Out_ NetErrorCode* err);
 
 // Receive one datagram into buf and report its source address. Same return convention as
-// netSockRecv(), except 0 is a legitimate zero-length datagram rather than a shutdown.
+// netSockRecv(), except 0 is a legitimate zero-length datagram rather than a shutdown. A datagram
+// larger than len is consumed and dropped, failing with NERR_MessageTooLarge.
 intptr netSockRecvFrom(NetSockHandle h, _Out_writes_bytes_(len) void* buf, size_t len,
                        _Out_ NetAddr* from, _Out_ NetErrorCode* err);
 

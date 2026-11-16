@@ -257,12 +257,24 @@ intptr netSockRecv(NetSockHandle h, void* buf, size_t len, NetErrorCode* err)
 _Use_decl_annotations_
 intptr netSockRecvFrom(NetSockHandle h, void* buf, size_t len, NetAddr* from, NetErrorCode* err)
 {
+    // recvmsg rather than recvfrom: only msg_flags says whether the datagram was truncated.
     struct sockaddr_storage sa;
-    socklen_t salen = sizeof(sa);
+    struct iovec iov = { .iov_base = buf, .iov_len = len };
 
-    ssize_t n = recvfrom((int)h, buf, len, 0, (struct sockaddr*)&sa, &salen);
+    struct msghdr mh;
+    memset(&mh, 0, sizeof(mh));
+    mh.msg_name    = &sa;
+    mh.msg_namelen = sizeof(sa);
+    mh.msg_iov     = &iov;
+    mh.msg_iovlen  = 1;
+
+    ssize_t n = recvmsg((int)h, &mh, 0);
     if (n < 0) {
         *err = netLastError();
+        return -1;
+    }
+    if (mh.msg_flags & MSG_TRUNC) {
+        *err = NERR_MessageTooLarge;
         return -1;
     }
 
@@ -380,6 +392,11 @@ intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, 
     ssize_t n = recvmsg((int)h, &mh, 0);
     if (n < 0) {
         *err = netLastError();
+        memset(info, 0, sizeof(*info));
+        return -1;
+    }
+    if (mh.msg_flags & MSG_TRUNC) {
+        *err = NERR_MessageTooLarge;
         memset(info, 0, sizeof(*info));
         return -1;
     }

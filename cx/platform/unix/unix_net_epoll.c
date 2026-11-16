@@ -136,7 +136,7 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
             NetAddr src;
             NetErrorCode err;
             intptr n = netSockRecvFrom(sock->handle, scratch, sizeof(scratch), &src, &err);
-            if (n < 0 && err == NERR_WouldBlock)
+            if (n < 0 && err != NERR_MessageTooLarge)
                 return;
             atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
             continue;
@@ -150,6 +150,12 @@ static void ingestDatagramBatch(_Inout_ NetQueueEpoll* self, _Inout_ NetSocket* 
         }
 
         for (int i = 0; i < n; i++) {
+            if (msgs[i].msg_hdr.msg_flags & MSG_TRUNC) {
+                bufpoolPut(&q->pool->msgbuf, &bufs[i]);
+                atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+                continue;
+            }
+
             NetAddr src;
             NetPktInfo info;
             netAddrFromSockaddr(&src, (struct sockaddr*)&addrs[i]);

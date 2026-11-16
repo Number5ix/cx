@@ -57,47 +57,71 @@ typedef enum {
     IocpAccept   = 6,   // overlapped AcceptEx for one incoming connection
 } IocpOpType;
 
+// Retired ops the queue keeps for reuse, so a busy socket's steady state allocates nothing.
+#define IOCP_FREE_OPS 256
+
+// Synchronous WSARecvFrom failures that only consume a pending datagram error (an ICMP report or an
+// oversized datagram) rather than say anything about the socket. Each retry uses up one of them, so
+// the bound only has to cover a burst that arrived together.
+#define IOCP_RECV_RETRIES 8
+
+STR_CONST(kIocpFmtRecvDeaf,
+          "Datagram socket has no receive outstanding after WSARecvFrom failed (error ${int}); it "
+          "will not receive again");
+
 typedef struct IocpOp {
     OVERLAPPED ov;
     IocpOpType type;
-    NetSocket*  sock;   // strong ref held for the life of the operation
-    Buffer      buf;    // datagram recv: pooled buffer being filled; NULL otherwise
-    // Datagram recv posted while the buffer pool was empty: an op-owned buffer, copied into a
-    // pooled one on completion if the pool has recovered by then. See postRecvFrom().
-    uint8*      scratch;
-    WSABUF      wsabuf;
-    DWORD       flags;  // WSARecv/WSARecvFrom in/out flags
-    struct sockaddr_storage from;   // datagram recv: source; datagram send: destination
-    INT         fromlen;
+    NetSocket*  sock;        // strong ref held for the life of the operation
+    struct IocpOp* nextFree; // link in the queue's free list while retired
+    WSABUF      wsabuf;      // receives, and the single buffer of a datagram send
+    DWORD       flags;       // WSARecv/WSARecvFrom in/out flags
+    size_t      sendBytes;   // bytes a send op is carrying (to skip/account on done)
+
+    // Each op type uses only its own arm.
+    union {
+        // IocpRecvFrom and IocpSendTo
+        struct {
+            Buffer      buf;   // datagram recv: pooled buffer being filled; NULL otherwise
+            // Datagram recv posted while the buffer pool was empty: an op-owned buffer, copied into
+            // a pooled one on completion if the pool has recovered by then. See postRecvFrom().
+            uint8*      scratch;
+            NetMessage* sendMsg;   // datagram send: the message this op owns until completion
+            struct sockaddr_storage from;   // datagram recv: source; datagram send: destination
+            INT         fromlen;
 
 #if defined(NET_HAVE_WSAMSG)
-    // Datagram recv on a socket that asked for per-datagram IP information: the receive is posted
-    // as a WSARecvMsg instead, and the message and its control buffer have to outlive the call, so
-    // they live here rather than on the posting thread's stack.
-    WSAMSG      msg;
-    char        control[NET_CMSG_SPACE];
-    bool        recvMsg;
+            // A datagram op that carries per-datagram IP information is posted as a WSARecvMsg or
+            // WSASendMsg instead, and the message and its control buffer have to outlive the call,
+            // so they live here rather than on the posting thread's stack.
+            WSAMSG      msg;
+            char        control[NET_CMSG_SPACE];
+            bool        recvMsg;
 #endif
+        };
 
-    // Send-only fields (unused by receives).
-    NetMessage* sendMsg;               // datagram send: the message this op owns until completion
-    size_t      sendBytes;             // bytes this send op is carrying (to skip/account on done)
-    WSABUF      sendbufs[IOCP_SEND_IOV];
-    DWORD       sendnbufs;
+        // IocpSend
+        struct {
+            WSABUF      sendbufs[IOCP_SEND_IOV];
+            DWORD       sendnbufs;
+        };
 
-    // Connect-only: the attempt generation this op belongs to. A completion whose generation no
-    // longer matches the socket's is a superseded attempt (timed out and failed over to a fresh
-    // handle whose ConnectEx was cancelled) and only cleans itself up.
-    uint32      connectGen;
+        // IocpConnect: the attempt generation this op belongs to. A completion whose generation no
+        // longer matches the socket's is a superseded attempt (timed out and failed over to a fresh
+        // handle whose ConnectEx was cancelled) and only cleans itself up.
+        uint32      connectGen;
 
-    // Accept-only: the pre-created socket AcceptEx fills with the incoming connection (INVALID_SOCKET
-    // once its ownership has moved into the wrapped NetSocket), and the address buffer AcceptEx
-    // requires for the local+remote endpoints.
-    SOCKET      acceptSock;
-    char        acceptBuf[IOCP_ACCEPT_ADDRLEN * 2];
+        // IocpAccept: the pre-created socket AcceptEx fills with the incoming connection
+        // (INVALID_SOCKET once its ownership has moved into the wrapped NetSocket), and the address
+        // buffer AcceptEx requires for the local+remote endpoints.
+        struct {
+            SOCKET      acceptSock;
+            char        acceptBuf[IOCP_ACCEPT_ADDRLEN * 2];
+        };
+    };
 } IocpOp;
 
-static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock);
+static int postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock);
 static bool postRecv(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock);
 static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock,
                            _Out_ NetErrorCode* err, _Out_ NetAddr* errAddr);
@@ -171,6 +195,47 @@ static NetErrorCode mapConnectError(DWORD err)
     return e == NERR_Unknown ? NERR_ConnectionRefused : e;
 }
 
+// A zeroed op, reused from the free list when one is available.
+static IocpOp* opAlloc(_Inout_ NetQueueWinIOCP* self, IocpOpType type, _In_ NetSocket* sock)
+{
+    IocpOp* op = NULL;
+    withMutex (&self->opLock) {
+        op = (IocpOp*)self->freeOps;
+        if (op) {
+            self->freeOps = op->nextFree;
+            self->nfreeOps--;
+        }
+    }
+
+    if (op)
+        memset(op, 0, sizeof(IocpOp));
+    else
+        op = xaAlloc(sizeof(IocpOp), XA_Zero);
+
+    op->type = type;
+    op->sock = objAcquire(sock);
+    return op;
+}
+
+// Release the op's socket reference and retire it. Whatever else the op owned must already be gone.
+static void opFree(_Inout_ NetQueueWinIOCP* self, _Inout_ IocpOp** pop)
+{
+    IocpOp* op = *pop;
+    *pop       = NULL;
+    objRelease(&op->sock);
+
+    withMutex (&self->opLock) {
+        if (self->nfreeOps < IOCP_FREE_OPS) {
+            op->nextFree  = (IocpOp*)self->freeOps;
+            self->freeOps = op;
+            self->nfreeOps++;
+            op            = NULL;
+        }
+    }
+    if (op)
+        xaFree(op);
+}
+
 // Cancel what was just posted on a socket that was closed while it was being posted.
 //
 // close() cancels everything pending, but it can land between a completion thread deciding to
@@ -188,19 +253,53 @@ static void cancelIfClosed(_In_ NetSocket* sock)
 // Posting receives
 // ---------------------------------------------------------------------------------------------
 
-// Post one WSARecvFrom against a fresh pooled buffer. Returns false without posting when the pool is
-// dry (counted as a drop -- a later completion that frees a buffer reposts and the outstanding set
-// refills as the pool recovers) or the queue is shutting down.
-static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
+// Issue the WSARecvFrom (or WSARecvMsg) for an op whose buffer is already set up. Returns the
+// Winsock error of a synchronous failure, or 0 if a completion will arrive.
+static int issueRecvFrom(_Inout_ IocpOp* op, _In_ NetSocket* sock)
+{
+    memset(&op->ov, 0, sizeof(op->ov));
+    op->flags   = 0;
+    op->fromlen = (INT)sizeof(op->from);
+
+    int rc;
+#if defined(NET_HAVE_WSAMSG)
+    NetRecvMsgFn recvMsgFn = sock->recvInfo ? _netRecvMsgFn() : NULL;
+    if (recvMsgFn) {
+        op->recvMsg           = true;
+        op->msg.name          = (struct sockaddr*)&op->from;
+        op->msg.namelen       = (INT)sizeof(op->from);
+        op->msg.lpBuffers     = &op->wsabuf;
+        op->msg.dwBufferCount = 1;
+        op->msg.Control.buf   = op->control;
+        op->msg.Control.len   = sizeof(op->control);
+        op->msg.dwFlags       = 0;
+        rc = recvMsgFn((SOCKET)sock->handle, &op->msg, NULL, &op->ov, NULL);
+    } else
+#endif
+        rc = WSARecvFrom((SOCKET)sock->handle, &op->wsabuf, 1, NULL, &op->flags,
+                         (struct sockaddr*)&op->from, &op->fromlen, &op->ov, NULL);
+
+    // A return of 0 (immediate completion) still queues a completion packet, because the socket is
+    // associated with the port and FILE_SKIP_COMPLETION_PORT_ON_SUCCESS is not set. Only a real
+    // synchronous error means no completion will arrive.
+    if (rc == SOCKET_ERROR) {
+        int we = WSAGetLastError();
+        if (we != WSA_IO_PENDING)
+            return we;
+    }
+    return 0;
+}
+
+// Post one WSARecvFrom against a fresh pooled buffer, or an op-owned one if the pool is dry. Returns
+// 0 once posted, the Winsock error if the post failed outright, or -1 if the queue is shutting down.
+// The caller accounts for the post in sock->recvPosted.
+static int postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
 {
     NetQueue* q = NetQueue(self);
     if (_netqueueShuttingDown(q))
-        return false;
+        return -1;
 
-    IocpOp* op  = xaAlloc(sizeof(IocpOp), XA_Zero);
-    op->type    = IocpRecvFrom;
-    op->sock    = objAcquire(sock);
-    op->fromlen = (INT)sizeof(op->from);
+    IocpOp* op = opAlloc(self, IocpRecvFrom, sock);
 
     // With the pool empty, receive into a buffer this op owns rather than posting nothing. A
     // readiness backend can decline to read and be told again on the next poll; a completion
@@ -223,37 +322,53 @@ static bool postRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
 
     atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
 
-    int rc;
-#if defined(NET_HAVE_WSAMSG)
-    NetRecvMsgFn recvMsgFn = sock->recvInfo ? _netRecvMsgFn() : NULL;
-    if (recvMsgFn) {
-        op->recvMsg          = true;
-        op->msg.name         = (struct sockaddr*)&op->from;
-        op->msg.namelen      = (INT)sizeof(op->from);
-        op->msg.lpBuffers    = &op->wsabuf;
-        op->msg.dwBufferCount = 1;
-        op->msg.Control.buf  = op->control;
-        op->msg.Control.len  = sizeof(op->control);
-        rc = recvMsgFn((SOCKET)sock->handle, &op->msg, NULL, &op->ov, NULL);
-    } else
-#endif
-        rc = WSARecvFrom((SOCKET)sock->handle, &op->wsabuf, 1, NULL, &op->flags,
-                         (struct sockaddr*)&op->from, &op->fromlen, &op->ov, NULL);
-    // A return of 0 (immediate completion) still queues a completion packet, because the socket is
-    // associated with the port and FILE_SKIP_COMPLETION_PORT_ON_SUCCESS is not set. Only a real
-    // synchronous error means no completion will arrive, so unwind here in that case alone.
-    if (rc == SOCKET_ERROR && WSAGetLastError() != WSA_IO_PENDING) {
+    // A datagram socket's pending ICMP report or oversized datagram can fail the post itself,
+    // consuming that one error. Giving up then would leave the socket a receive short, so retry.
+    int we = issueRecvFrom(op, sock);
+    for (int i = 0; we != 0 && i < IOCP_RECV_RETRIES; i++) {
+        if (we == WSAEMSGSIZE)
+            atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+        else if (we != WSAECONNRESET && we != WSAENETRESET)
+            break;
+        we = issueRecvFrom(op, sock);
+    }
+
+    if (we != 0) {
         atomicFetchSub(uint32, &self->iops, 1, AcqRel);
         if (op->buf)
             bufpoolPut(&q->pool->msgbuf, &op->buf);
         xaDestroy(&op->scratch);
-        objRelease(&op->sock);
-        xaFree(op);
-        return false;
+        opFree(self, &op);
+        return we;
     }
 
     cancelIfClosed(sock);
-    return true;
+    return 0;
+}
+
+// Post datagram receives until the socket has its full complement outstanding. Called when a socket
+// joins the queue and after every receive completes, so a post that failed is replaced as soon as
+// the socket shows signs of life again.
+static void topUpRecvFrom(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
+{
+    for (;;) {
+        uint32 n = atomicLoad(uint32, &sock->recvPosted, Acquire);
+        if (n >= self->dgramRecvs)
+            return;
+        if (!atomicCompareExchange(uint32, weak, &sock->recvPosted, &n, n + 1, AcqRel, Relaxed))
+            continue;
+
+        int we = postRecvFrom(self, sock);
+        if (we != 0) {
+            // The last receive gone means nothing will complete to retry from. Say so once, rather
+            // than leave a socket that silently hears nothing.
+            if (atomicFetchSub(uint32, &sock->recvPosted, 1, AcqRel) == 1 && we > 0 &&
+                atomicLoad(uint32, &sock->state, Relaxed) != NS_Closed) {
+                logFmtC(Warn, NetLogChannel, kIocpFmtRecvDeaf, stvar(int32, we));
+            }
+            return;
+        }
+    }
 }
 
 // Post the single WSARecv for a connected stream socket. Reserves contiguous ring space now and
@@ -265,9 +380,7 @@ static bool postRecv(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
     if (_netqueueShuttingDown(q))
         return false;
 
-    IocpOp* op = xaAlloc(sizeof(IocpOp), XA_Zero);
-    op->type   = IocpRecv;
-    op->sock   = objAcquire(sock);
+    IocpOp* op = opAlloc(self, IocpRecv, sock);
 
     uint8* ptr;
     size_t len;
@@ -286,8 +399,7 @@ static bool postRecv(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
         withMutex (&sock->recvLock) {
             bufringCommit(&sock->bufs.stream.recv, 0);
         }
-        objRelease(&op->sock);
-        xaFree(op);
+        opFree(self, &op);
         return false;
     }
 
@@ -326,9 +438,7 @@ static bool postAccept(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* listene
     if (as == INVALID_SOCKET)
         return false;
 
-    IocpOp* op     = xaAlloc(sizeof(IocpOp), XA_Zero);
-    op->type       = IocpAccept;
-    op->sock       = objAcquire(listener);
+    IocpOp* op     = opAlloc(self, IocpAccept, listener);
     op->acceptSock = as;
 
     atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
@@ -341,8 +451,7 @@ static bool postAccept(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* listene
     if (!ok && WSAGetLastError() != ERROR_IO_PENDING) {
         atomicFetchSub(uint32, &self->iops, 1, AcqRel);
         closesocket(as);
-        objRelease(&op->sock);
-        xaFree(op);
+        opFree(self, &op);
         return false;
     }
     return true;
@@ -374,9 +483,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         if (sock->bufs.stream.send.total == 0)
             return;
 
-        IocpOp* op = xaAlloc(sizeof(IocpOp), XA_Zero);
-        op->type   = IocpSend;
-        op->sock   = objAcquire(sock);
+        IocpOp* op = opAlloc(self, IocpSend, sock);
 
         BufIov iov[IOCP_SEND_IOV];
         size_t niov = 0;
@@ -384,8 +491,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         // happen until this op completes.
         op->sendBytes = bufchainGatherIov(&sock->bufs.stream.send, iov, IOCP_SEND_IOV, &niov);
         if (niov == 0) {   // nothing gatherable after all
-            objRelease(&op->sock);
-            xaFree(op);
+            opFree(self, &op);
             return;
         }
         for (size_t i = 0; i < niov; i++) {
@@ -402,8 +508,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         if (rc == SOCKET_ERROR && we != WSA_IO_PENDING) {
             atomicFetchSub(uint32, &self->iops, 1, AcqRel);
             sock->sendPending = false;
-            objRelease(&op->sock);
-            xaFree(op);
+            opFree(self, &op);
             if (!_netqueueShuttingDown(q))
                 *err = _netMapWsaError(we);
         } else {
@@ -416,14 +521,11 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         size_t len = m->buf ? m->buf->len : 0;
         sock->sendQueued -= len;
 
-        IocpOp* op    = xaAlloc(sizeof(IocpOp), XA_Zero);
-        op->type      = IocpSendTo;
-        op->sock      = objAcquire(sock);
+        IocpOp* op    = opAlloc(self, IocpSendTo, sock);
         op->sendMsg   = m;   // owned until completion
         op->sendBytes = len;
-        op->sendbufs[0].buf = (CHAR*)(m->buf ? m->buf->data : NULL);
-        op->sendbufs[0].len = (ULONG)min(len, (size_t)ULONG_MAX);
-        op->sendnbufs = 1;
+        op->wsabuf.buf = (CHAR*)(m->buf ? m->buf->data : NULL);
+        op->wsabuf.len = (ULONG)min(len, (size_t)ULONG_MAX);
 
         int sasz = 0;
         // Reuse the op's sockaddr storage (a recv would hold the source here) for the destination.
@@ -442,7 +544,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         if (sendMsgFn) {
             op->msg.name          = (struct sockaddr*)&op->from;
             op->msg.namelen       = sasz;
-            op->msg.lpBuffers     = op->sendbufs;
+            op->msg.lpBuffers     = &op->wsabuf;
             op->msg.dwBufferCount = 1;
             op->msg.Control.buf   = op->control;
             op->msg.Control.len   = sizeof(op->control);
@@ -452,7 +554,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
             rc = sendMsgFn((SOCKET)sock->handle, &op->msg, 0, NULL, &op->ov, NULL);
         } else
 #endif
-            rc = WSASendTo((SOCKET)sock->handle, op->sendbufs, 1, NULL, 0,
+            rc = WSASendTo((SOCKET)sock->handle, &op->wsabuf, 1, NULL, 0,
                            (struct sockaddr*)&op->from, sasz, &op->ov, NULL);
         int we = rc == SOCKET_ERROR ? WSAGetLastError() : 0;
         if (rc == SOCKET_ERROR && we != WSA_IO_PENDING) {
@@ -463,8 +565,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
                 *errAddr = op->sendMsg->addr;
             }
             netpoolFreeMsg(q->pool, &op->sendMsg);   // drop this datagram on a fatal error
-            objRelease(&op->sock);
-            xaFree(op);
+            opFree(self, &op);
         } else {
             cancelIfClosed(sock);
         }
@@ -526,6 +627,8 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
     bool live     = ok && !shutting && !closed;
 
     if (op->type == IocpRecvFrom) {
+        atomicFetchSub(uint32, &sock->recvPosted, 1, AcqRel);
+
         if (live && op->scratch) {
             // Posted while the pool was empty, which says nothing about now. Dropping here
             // regardless would make starvation feed itself: the replacement receive is posted
@@ -543,9 +646,7 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
             }
         }
 
-        if (live && !op->buf) {
-            postRecvFrom(self, sock);   // dropped above; keep the pipeline full
-        } else if (live) {
+        if (live && op->buf) {
             op->buf->len = (size_t)bytes;
 
             NetAddr src;
@@ -564,13 +665,22 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
 
             if (op->buf)   // unrecognized source family; ingest did not take it
                 bufpoolPut(&q->pool->msgbuf, &op->buf);
-
-            // Keep the outstanding set full: replace the op we are retiring with a fresh one.
-            postRecvFrom(self, sock);
-        } else if (op->buf) {
-            // Aborted, errored, or torn down: return the buffer, post nothing.
-            bufpoolPut(&q->pool->msgbuf, &op->buf);
+        } else if (!ok && !aborted && !shutting && !closed &&
+                   (err == ERROR_MORE_DATA || err == WSAEMSGSIZE)) {
+            // Larger than the buffer. The kernel delivers a truncated datagram; drop it whole.
+            atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
         }
+
+        if (op->buf)
+            bufpoolPut(&q->pool->msgbuf, &op->buf);
+
+        // Every receive that completes on a live socket is replaced -- whether it carried a
+        // datagram, was dropped, or failed. A datagram socket's receive errors (an ICMP report, an
+        // oversized datagram) belong to one datagram, not the socket, and a completion backend that
+        // answered one without reposting would lose that receive for good. Only cancellation and
+        // teardown stop the pipeline.
+        if (!aborted && !shutting && !closed)
+            topUpRecvFrom(self, sock);
     } else if (op->type == IocpRecv) {   // stream receive
         withMutex (&sock->recvLock) {
             bufringCommit(&sock->bufs.stream.recv, (ok && bytes > 0) ? (size_t)bytes : 0);
@@ -679,9 +789,9 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
         }
     }
 
-    xaDestroy(&op->scratch);
-    objRelease(&op->sock);
-    xaFree(op);
+    if (op->type == IocpRecvFrom)
+        xaDestroy(&op->scratch);
+    opFree(self, &op);
     atomicFetchSub(uint32, &self->iops, 1, AcqRel);
 }
 
@@ -902,9 +1012,7 @@ bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, c
         return true;
     }
 
-    IocpOp* op      = xaAlloc(sizeof(IocpOp), XA_Zero);
-    op->type        = IocpConnect;
-    op->sock        = objAcquire(sock);
+    IocpOp* op      = opAlloc(self, IocpConnect, sock);
     op->connectGen  = atomicLoad(uint32, &sock->connectGen, Acquire);
 
     atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
@@ -915,8 +1023,7 @@ bool NetQueueWinIOCP_connectBegin(_In_ NetQueueWinIOCP* self, NetSocket* sock, c
     if (!ok && WSAGetLastError() != WSA_IO_PENDING) {
         NetErrorCode err = netLastError();
         atomicFetchSub(uint32, &self->iops, 1, AcqRel);
-        objRelease(&op->sock);
-        xaFree(op);
+        opFree(self, &op);
         netsocket_connectResult(sock, err);
     } else {
         cancelIfClosed(sock);
@@ -978,8 +1085,7 @@ bool NetQueueWinIOCP_addSocket(_In_ NetQueueWinIOCP* self, NetSocket* socket)
         return true;
 
     if (socket->type == NST_Datagram) {
-        for (uint32 i = 0; i < self->dgramRecvs; i++)
-            postRecvFrom(self, socket);
+        topUpRecvFrom(self, socket);
     } else {
         uint32 st = atomicLoad(uint32, &socket->state, Relaxed);
         if (st == NS_Connected) {
@@ -1107,8 +1213,24 @@ void NetQueueWinIOCP_destroy(_In_ NetQueueWinIOCP* self)
         self->iocp = NULL;
     }
 
+    while (self->freeOps) {
+        IocpOp* op    = (IocpOp*)self->freeOps;
+        self->freeOps = op->nextFree;
+        xaFree(op);
+    }
+    self->nfreeOps = 0;
+
     // Autogen begins -----
     saDestroy(&self->iothreads);
+    mutexDestroy(&self->opLock);
+    // Autogen ends -------
+}
+
+_objinit_guaranteed bool NetQueueWinIOCP_init(_In_ NetQueueWinIOCP* self)
+{
+    // Autogen begins -----
+    mutexInit(&self->opLock);
+    return true;
     // Autogen ends -------
 }
 

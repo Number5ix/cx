@@ -191,6 +191,8 @@ NetErrorCode _netMapWsaError(int e)
         return NERR_NotConnected;
     case WSAECONNRESET:
         return NERR_ConnectionReset;
+    case WSAEMSGSIZE:
+        return NERR_MessageTooLarge;
     default:
         return NERR_Unknown;
     }
@@ -514,6 +516,11 @@ intptr netSockRecvFromEx(NetSockHandle h, void* buf, size_t len, NetAddr* from, 
         DWORD got = 0;
         if (netRecvMsgFn((SOCKET)h, &mh, &got, NULL, NULL) == SOCKET_ERROR) {
             *err = netLastError();
+            memset(info, 0, sizeof(*info));
+            return -1;
+        }
+        if (mh.dwFlags & MSG_TRUNC) {
+            *err = NERR_MessageTooLarge;
             memset(info, 0, sizeof(*info));
             return -1;
         }

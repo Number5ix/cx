@@ -52,6 +52,11 @@ class NetQueueWinIOCP extends NetQueue
     // the first accept) and cached here. Held as void* so mswsock.h does not leak into the header.
     void *acceptEx;
 
+    // Retired operations kept for reuse (IocpOp*, linked through nextFree), guarded by opLock
+    void *freeOps;
+    uint32 nfreeOps;
+    Mutex opLock;
+
     factory create(NetQueueConfig *conf);
 
     // Create a socket compatible with this queue (does not add it).

@@ -109,7 +109,7 @@ static void ingestDatagram(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock
             NetAddr src;
             NetErrorCode err;
             intptr n = netSockRecvFrom(sock->handle, scratch, sizeof(scratch), &src, &err);
-            if (n < 0 && err == NERR_WouldBlock)
+            if (n < 0 && err != NERR_MessageTooLarge)
                 break;
             atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
             continue;
@@ -123,6 +123,10 @@ static void ingestDatagram(_Inout_ NetQueueKqueue* self, _Inout_ NetSocket* sock
                        : netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
         if (n < 0) {
             bufpoolPut(&q->pool->msgbuf, &buf);
+            if (err == NERR_MessageTooLarge) {
+                atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+                continue;
+            }
             break;   // WouldBlock (drained) or a real error; nothing more this pass
         }
 

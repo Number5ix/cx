@@ -123,6 +123,12 @@ abstract class NetSocket
     /// and corrupt the connection. Always false on readiness backends. Guarded by sendLock.
     bool sendPending;
 
+    // Datagram receives a completion backend has posted that have not completed yet. The IOCP
+    // backend tops this back up to its target on every completion, so a post that failed is made
+    // good by the next one instead of leaving the socket one receive short for good. Unused on
+    // readiness backends.
+    atomic[uint32] recvPosted;
+
     /// @brief Per-socket handler overrides, optional
     ///
     /// Resolved per field between the flow's set and the queue-wide set; see @ref net_handlers.

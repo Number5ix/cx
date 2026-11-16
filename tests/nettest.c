@@ -1809,6 +1809,191 @@ static void onStreamRecv(NetEvent* ev)
 }
 
 // ---------------------------------------------------------------------------------------------
+// Datagram behavior every backend must share. Each body takes a constructor for the backend under
+// test, so the select, IOCP, epoll and kqueue suites below run the same scenario.
+// ---------------------------------------------------------------------------------------------
+
+typedef NetQueue* (*MakeDgramQueueFn)(NetQueueConfig* conf);
+
+static NetQueue* makeSelectDgramQueue(NetQueueConfig* conf)
+{
+    conf->flags |= NQ_SelectOnly;
+    return netqueueCreate(conf);
+}
+
+// Records each datagram's first byte, so a test can tell which datagrams arrived and in what order.
+static void onDgramRecv(NetEvent* ev)
+{
+    Recorder* r = (Recorder*)ev->ctx;
+    r->recvCount++;
+    NetMessage* m = ev->recv.msg;
+    if (m && m->buf && m->buf->len > 0 && r->seqlen < sizeof(r->seq))
+        r->seq[r->seqlen++] = m->buf->data[0];
+}
+
+// A raw (non-cx) UDP socket bound to an ephemeral loopback port, reported through `port`.
+static SOCKET rawUdpSocket(uint16* port)
+{
+    SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (s == INVALID_SOCKET)
+        return s;
+
+    struct sockaddr_in sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sin_family      = AF_INET;
+    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(s, (struct sockaddr*)&sa, sizeof(sa)) != 0) {
+        closesocket(s);
+        return INVALID_SOCKET;
+    }
+
+    int salen = sizeof(sa);
+    getsockname(s, (struct sockaddr*)&sa, &salen);
+    *port = ntohs(sa.sin_port);
+    return s;
+}
+
+static void rawUdpSendTo(SOCKET s, const void* data, int len, uint16 port)
+{
+    struct sockaddr_in dst;
+    memset(&dst, 0, sizeof(dst));
+    dst.sin_family      = AF_INET;
+    dst.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    dst.sin_port        = htons(port);
+    sendto(s, (const char*)data, len, 0, (struct sockaddr*)&dst, sizeof(dst));
+}
+
+// A loopback port with nothing listening on it: bind an ephemeral one, then close it.
+static uint16 closedUdpPort(void)
+{
+    uint16 port = 0;
+    SOCKET s    = rawUdpSocket(&port);
+    if (s != INVALID_SOCKET)
+        closesocket(s);
+    return port;
+}
+
+// A cx datagram socket bound to an ephemeral loopback port and added to the queue.
+static NetSocket* boundDgramSocket(NetQueue* q, uint16* port)
+{
+    NetSocket* s = netqueueSocket(q, NST_Datagram);
+    if (!s)
+        return NULL;
+
+    NetAddr ba = loopbackAddr(0);
+    if (!netsocketBind(s, &ba)) {
+        objRelease(&s);
+        return NULL;
+    }
+    netqueueAddSocket(q, s);
+
+    struct sockaddr_in sa;
+    int salen = sizeof(sa);
+    getsockname((SOCKET)s->handle, (struct sockaddr*)&sa, &salen);
+    *port = ntohs(sa.sin_port);
+    return s;
+}
+
+// A datagram larger than the queue's receive buffers is dropped whole and counted, and the socket
+// keeps receiving: the normal datagrams on either side of it arrive, and nothing truncated does.
+static int dgramOversizeBody(MakeDgramQueueFn make)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onDgramRecv };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.recvBufSize = 256;
+    NetQueue* q      = make(&conf);
+    if (!q)
+        return 0;   // backend unavailable here (IOCP under Wine): skip
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    uint16 rport     = 0;
+    NetSocket* rsock = boundDgramSocket(q, &rport);
+    if (!rsock) {
+        objRelease(&q);
+        TEST_FAIL(1, _SL("could not create a bound datagram socket"), stvNone);
+    }
+
+    uint16 sport = 0;
+    SOCKET snd   = rawUdpSocket(&sport);
+
+    uint8 big[1000];
+    memset(big, 'B', sizeof(big));
+    rawUdpSendTo(snd, "1", 1, rport);
+    rawUdpSendTo(snd, big, sizeof(big), rport);
+    rawUdpSendTo(snd, "2", 1, rport);
+
+    tickUntil(q, &rec, 2);
+    // Give a stray truncated delivery of the oversized datagram the chance to show up.
+    netqueueTick(q, timeMS(50));
+
+    if (rec.recvCount != 2 || rec.seqlen != 2 || rec.seq[0] != '1' || rec.seq[1] != '2')
+        TEST_FAILV(ret, 1, _SL("expected datagrams '1','2' only, got ${uint} (first '${uint}')"),
+                   stvar(uint32, rec.recvCount), stvar(uint32, rec.seqlen ? rec.seq[0] : 0));
+    if (netqueueDroppedOversize(q) != 1)
+        TEST_FAILV(ret, 1, _SL("netqueueDroppedOversize()=${uint}, expected 1"),
+                   stvar(uint32, netqueueDroppedOversize(q)));
+
+    closesocket(snd);
+    netsocketClose(rsock);
+    objRelease(&rsock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// Each datagram sent to a closed port draws an ICMP port unreachable, which most platforms report
+// as an error on a later receive. However many arrive, the socket must keep receiving: more of them
+// than a polled IOCP queue keeps receives outstanding (4) once left that backend deaf for good.
+static int dgramSurvivesUnreachableBody(MakeDgramQueueFn make)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onDgramRecv };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    NetQueue* q = make(&conf);
+    if (!q)
+        return 0;   // backend unavailable here (IOCP under Wine): skip
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    uint16 rport     = 0;
+    NetSocket* rsock = boundDgramSocket(q, &rport);
+    if (!rsock) {
+        objRelease(&q);
+        TEST_FAIL(1, _SL("could not create a bound datagram socket"), stvNone);
+    }
+
+    NetAddr dead = loopbackAddr(closedUdpPort());
+    for (int i = 0; i < 8; i++) {
+        netsocketSend(rsock, (const uint8*)"x", 1, &dead, 0);
+        netqueueTick(q, timeMS(20));
+    }
+
+    uint16 sport = 0;
+    SOCKET snd   = rawUdpSocket(&sport);
+    rawUdpSendTo(snd, "L", 1, rport);
+    tickUntil(q, &rec, 1);
+
+    if (rec.recvCount != 1 || rec.seq[0] != 'L')
+        TEST_FAILV(ret, 1, _SL("datagram after 8 ICMP errors not received (recvCount=${uint})"),
+                   stvar(uint32, rec.recvCount));
+
+    closesocket(snd);
+    netsocketClose(rsock);
+    objRelease(&rsock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Connect path: the client half, over real loopback sockets, on both backends. A
 // NetSocket connects out; netsocketConnect() resolves (or takes the literal), tries each address in
 // order with a fresh handle, and delivers NET_Connection through the flow. These drive the whole
@@ -2531,6 +2716,16 @@ static int test_nettest_select_udp(void)
     netqueueShutdown(q, 0);
     objRelease(&q);
     return ret;
+}
+
+static int test_nettest_select_udp_oversize(void)
+{
+    return dgramOversizeBody(makeSelectDgramQueue);
+}
+
+static int test_nettest_select_udp_unreachable_live(void)
+{
+    return dgramSurvivesUnreachableBody(makeSelectDgramQueue);
 }
 
 // A connected loopback TCP pair: bytes sent on the client end are ingested into the server
@@ -3410,6 +3605,21 @@ static int test_nettest_iocp_udp(void)
     return ret;
 }
 
+static NetQueue* makeIocpDgramQueue(NetQueueConfig* conf)
+{
+    return netPlatformCreateIOCP(conf);
+}
+
+static int test_nettest_iocp_udp_oversize(void)
+{
+    return dgramOversizeBody(makeIocpDgramQueue);
+}
+
+static int test_nettest_iocp_udp_unreachable_live(void)
+{
+    return dgramSurvivesUnreachableBody(makeIocpDgramQueue);
+}
+
 // A connected loopback TCP pair: bytes arrive on a single outstanding WSARecv, land in the socket's
 // ring via reserve/commit, and are delivered through recv() intact -- drained by tick().
 static int test_nettest_iocp_stream(void)
@@ -4082,6 +4292,21 @@ static int test_nettest_epoll_udp(void)
     return ret;
 }
 
+static NetQueue* makeEpollDgramQueue(NetQueueConfig* conf)
+{
+    return (NetQueue*)netqueueepollCreate(conf);
+}
+
+static int test_nettest_epoll_udp_oversize(void)
+{
+    return dgramOversizeBody(makeEpollDgramQueue);
+}
+
+static int test_nettest_epoll_udp_unreachable_live(void)
+{
+    return dgramSurvivesUnreachableBody(makeEpollDgramQueue);
+}
+
 // A connected loopback TCP pair over epoll's polled tick(), mirroring test_nettest_select_stream.
 static int test_nettest_epoll_stream(void)
 {
@@ -4426,6 +4651,21 @@ static int test_nettest_kqueue_udp(void)
     netqueueShutdown(q, 0);
     objRelease(&q);
     return ret;
+}
+
+static NetQueue* makeKqueueDgramQueue(NetQueueConfig* conf)
+{
+    return (NetQueue*)netqueuekqueueCreate(conf);
+}
+
+static int test_nettest_kqueue_udp_oversize(void)
+{
+    return dgramOversizeBody(makeKqueueDgramQueue);
+}
+
+static int test_nettest_kqueue_udp_unreachable_live(void)
+{
+    return dgramSurvivesUnreachableBody(makeKqueueDgramQueue);
 }
 
 // A connected loopback TCP pair over kqueue's polled tick(), mirroring test_nettest_select_stream.
@@ -5104,6 +5344,11 @@ int test_nettest_grp_select_loopback(void)
                test_nettest_select_stream_backpressure);
 }
 
+int test_nettest_grp_select_dgram(void)
+{
+    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live);
+}
+
 int test_nettest_grp_select_connect(void)
 {
     TEST_CHAIN(test_nettest_select_connect, test_nettest_select_connect_dns,
@@ -5131,6 +5376,11 @@ int test_nettest_grp_iocp_loopback(void)
                test_nettest_iocp_udp_send, test_nettest_iocp_stream_backpressure);
 }
 
+int test_nettest_grp_iocp_dgram(void)
+{
+    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live);
+}
+
 int test_nettest_grp_iocp_connect(void)
 {
     TEST_CHAIN(test_nettest_iocp_connect, test_nettest_iocp_connect_dns,
@@ -5148,6 +5398,11 @@ int test_nettest_grp_epoll_loopback(void)
                test_nettest_epoll_stream_threaded);
 }
 
+int test_nettest_grp_epoll_dgram(void)
+{
+    TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live);
+}
+
 int test_nettest_grp_epoll_connect(void)
 {
     TEST_CHAIN(test_nettest_epoll_connect, test_nettest_epoll_connect_dns,
@@ -5163,6 +5418,11 @@ int test_nettest_grp_kqueue_loopback(void)
     TEST_CHAIN(test_nettest_kqueue_udp, test_nettest_kqueue_stream,
                test_nettest_kqueue_stream_backpressure, test_nettest_kqueue_udp_threaded,
                test_nettest_kqueue_stream_threaded);
+}
+
+int test_nettest_grp_kqueue_dgram(void)
+{
+    TEST_CHAIN(test_nettest_kqueue_udp_oversize, test_nettest_kqueue_udp_unreachable_live);
 }
 
 int test_nettest_grp_kqueue_connect(void)
@@ -5232,6 +5492,9 @@ testfunc nettest_funcs[] = {
     { "shutdown_stall_handler",     test_nettest_shutdown_stall_handler     },
     { "grp_general",                test_nettest_grp_general                },
     { "grp_filterdgram",            test_nettest_grp_filterdgram            },
+    { "select_udp_oversize",        test_nettest_select_udp_oversize        },
+    { "select_udp_unreachable_live", test_nettest_select_udp_unreachable_live },
+    { "grp_select_dgram",           test_nettest_grp_select_dgram           },
     { "grp_select_loopback",        test_nettest_grp_select_loopback        },
     { "grp_select_connect",         test_nettest_grp_select_connect         },
     { "grp_timerwait",              test_nettest_grp_timerwait              },
@@ -5250,6 +5513,9 @@ testfunc nettest_funcs[] = {
     { "iocp_connect_timeout",       test_nettest_iocp_connect_timeout       },
     { "iocp_accept",                test_nettest_iocp_accept                },
     { "iocp_accept_auto",           test_nettest_iocp_accept_auto           },
+    { "iocp_udp_oversize",          test_nettest_iocp_udp_oversize          },
+    { "iocp_udp_unreachable_live",  test_nettest_iocp_udp_unreachable_live  },
+    { "grp_iocp_dgram",             test_nettest_grp_iocp_dgram             },
     { "grp_iocp_loopback",          test_nettest_grp_iocp_loopback          },
     { "grp_iocp_connect",           test_nettest_grp_iocp_connect           },
 #endif
@@ -5265,6 +5531,9 @@ testfunc nettest_funcs[] = {
     { "epoll_connect_timeout",      test_nettest_epoll_connect_timeout      },
     { "epoll_accept",               test_nettest_epoll_accept               },
     { "epoll_accept_auto",          test_nettest_epoll_accept_auto          },
+    { "epoll_udp_oversize",         test_nettest_epoll_udp_oversize         },
+    { "epoll_udp_unreachable_live", test_nettest_epoll_udp_unreachable_live },
+    { "grp_epoll_dgram",            test_nettest_grp_epoll_dgram            },
     { "grp_epoll_loopback",         test_nettest_grp_epoll_loopback         },
     { "grp_epoll_connect",          test_nettest_grp_epoll_connect          },
 #endif
@@ -5280,6 +5549,9 @@ testfunc nettest_funcs[] = {
     { "kqueue_connect_timeout",     test_nettest_kqueue_connect_timeout     },
     { "kqueue_accept",              test_nettest_kqueue_accept              },
     { "kqueue_accept_auto",         test_nettest_kqueue_accept_auto         },
+    { "kqueue_udp_oversize",        test_nettest_kqueue_udp_oversize        },
+    { "kqueue_udp_unreachable_live", test_nettest_kqueue_udp_unreachable_live },
+    { "grp_kqueue_dgram",           test_nettest_grp_kqueue_dgram           },
     { "grp_kqueue_loopback",        test_nettest_grp_kqueue_loopback        },
     { "grp_kqueue_connect",         test_nettest_grp_kqueue_connect         },
 #endif

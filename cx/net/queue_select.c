@@ -131,12 +131,12 @@ static void ingestDatagram(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock
             // Pool exhausted. Consume one datagram into a scratch and drop it, so readiness clears
             // and the loop cannot spin on the same packet, and count it so a too-small pool shows
             // up as droppedNoBuf rather than as silent loss. A datagram larger than the scratch is
-            // consumed and truncated by the OS, which is fine on a path that is discarding it.
+            // consumed all the same, which is fine on a path that is discarding it.
             uint8 scratch[2048];
             NetAddr src;
             NetErrorCode err;
             intptr n = netSockRecvFrom(sock->handle, scratch, sizeof(scratch), &src, &err);
-            if (n < 0 && err == NERR_WouldBlock)
+            if (n < 0 && err != NERR_MessageTooLarge)
                 break;
             atomicFetchAdd(uint32, &q->droppedNoBuf, 1, Relaxed);
             continue;
@@ -150,6 +150,10 @@ static void ingestDatagram(_Inout_ NetQueueSelect* self, _Inout_ NetSocket* sock
                        : netSockRecvFrom(sock->handle, buf->data, buf->sz, &src, &err);
         if (n < 0) {
             bufpoolPut(&q->pool->msgbuf, &buf);
+            if (err == NERR_MessageTooLarge) {
+                atomicFetchAdd(uint32, &q->droppedOversize, 1, Relaxed);
+                continue;
+            }
             break;   // WouldBlock (drained) or a real error; nothing more this tick
         }
 

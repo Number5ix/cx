@@ -446,6 +446,11 @@ uint32 NetQueue_droppedNoBuf(_In_ NetQueue* self)
     return atomicLoad(uint32, &self->droppedNoBuf, Relaxed);
 }
 
+uint32 NetQueue_droppedOversize(_In_ NetQueue* self)
+{
+    return atomicLoad(uint32, &self->droppedOversize, Relaxed);
+}
+
 bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout)
 {
     // Stop accepting new work first. A backend that runs its own I/O threads has already stopped
