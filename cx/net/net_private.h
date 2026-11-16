@@ -102,10 +102,11 @@ intptr netSockRecvFrom(NetSockHandle h, _Out_writes_bytes_(len) void* buf, size_
 intptr netSockSendv(NetSockHandle h, _In_reads_(niov) const BufIov* iov, size_t niov,
                     _Out_ NetErrorCode* err);
 
-// Send one datagram to dest. Returns bytes sent, or -1 with *err set (NERR_WouldBlock when the send
-// buffer is full). Never blocks.
+// Send one datagram to dest, or to the connected peer when dest is NULL (a connected socket must
+// pass NULL). Returns bytes sent, or -1 with *err set (NERR_WouldBlock when the send buffer is
+// full). Never blocks.
 intptr netSockSendTo(NetSockHandle h, _In_reads_bytes_(len) const void* buf, size_t len,
-                     _In_ const NetAddr* dest, _Out_ NetErrorCode* err);
+                     _In_opt_ const NetAddr* dest, _Out_ NetErrorCode* err);
 
 // Receive one datagram, also reporting whatever the IP layer carried with it: the local address it
 // arrived on, and its ECN codepoint. Same return convention as netSockRecvFrom().
@@ -123,7 +124,7 @@ intptr netSockRecvFromEx(NetSockHandle h, _Out_writes_bytes_(len) void* buf, siz
 // went out unmarked is worth far more than one that did not go out. A caller that needs to know
 // whether marking works finds out from the peer, which is what ECN validation is for.
 intptr netSockSendToEx(NetSockHandle h, _In_reads_bytes_(len) const void* buf, size_t len,
-                       _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info,
+                       _In_opt_ const NetAddr* dest, _In_opt_ const NetPktInfo* info,
                        _Out_ NetErrorCode* err);
 
 // Ask the OS to report the local address and ECN codepoint of datagrams received on this socket,
@@ -217,6 +218,19 @@ void nselWake(_Inout_ NetSelectSet* set);
 // queue.cxh. Only the platform shims above, the standalone helpers below, and the resolver remain
 // here.
 // ---------------------------------------------------------------------------------------------
+
+// An event waiting on a queue's control list (see NetQueue::ctlHead).
+typedef struct NetCtlEvent {
+    struct NetCtlEvent* next;
+    NetSocket* sock;   // strong, or NULL for a queue-level event
+    NetEvent ev;
+} NetCtlEvent;
+
+// Release a control event and the socket reference it holds.
+void _netCtlEventFree(_Inout_ NetCtlEvent** pce);
+
+// Drop every control event still waiting on the queue, undelivered. Shutdown and destroy.
+void _netCtlEventsClear(_Inout_ NetQueue* q);
 
 // netqueue_peerUnreachable() flag: the platform reports the peer's address but not reliably its
 // port, so a peer with no exact flow match is matched on its address alone when only one flow has it.

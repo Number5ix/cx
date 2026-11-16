@@ -99,6 +99,14 @@ abstract class NetQueue
     /// @brief Set when shutdown begins, so ingest stops producing and addSocket is refused
     atomic[uint32] shutdownReq;
 
+    // Events with no flow to be ordered behind (a datagram connect that failed), as a FIFO of
+    // NetCtlEvent (net_private.h) guarded by ctlLock. nctl counts them so dispatch can skip the
+    // lock when there are none.
+    void *ctlHead;
+    void *ctlTail;
+    atomic[uint32] nctl;
+    Mutex ctlLock;
+
     /// @brief Backend hook invoked when the send path leaves outbound data queued on a socket
     ///
     /// netsocketSend() calls this after its own flush when data couldn't all go out at once, so
@@ -168,6 +176,18 @@ abstract class NetQueue
     //
     // @param sock Socket that just connected
     [abstract] void connectArm(NetSocket* sock);
+
+    // Connect a datagram socket to one peer
+    //
+    // The datagram counterpart of connectBegin, which completes at once: a datagram connect is
+    // the OS recording the peer, with nothing sent. The backend runs the shared
+    // netsocket_dgramConnectHandle() and then follows the socket to whatever handle that left it
+    // with -- watching it for receive, or posting its receives.
+    //
+    // @param sock Datagram socket to connect
+    // @param addr Peer address
+    // @return NERR_None if the socket is now connected to addr
+    [abstract] NetErrorCode dgramConnect(NetSocket* sock, const NetAddr* addr);
 
     // Begin (or resume) accepting connections on a now-listening socket
     //
@@ -272,6 +292,32 @@ abstract class NetQueue
     [sal _Ret_maybenull_] unbound NetSocket *connectPrep(strref host, uint16 port,
         [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx,
         [opt] NetConnectPrepCB prep, [in] [opt] void *prepctx);
+
+    /// Create a datagram socket on the queue and connect it to one peer, in one call
+    ///
+    /// The datagram counterpart of netqueueConnect(): the socket exchanges datagrams with that peer
+    /// only, so send() can pass NULL for the destination, and it hears NET_PeerUnreachable when the
+    /// peer goes away on every platform (see netsocketConnect()). NET_FlowOpen and then
+    /// NET_Connection arrive on the peer's flow once it is connected.
+    ///
+    /// @param host Hostname or literal address of the peer (NULL/empty means loopback)
+    /// @param port Port number, host byte order
+    /// @param handlers Per-socket handler overrides, or NULL for none. Not copied -- must
+    ///                 outlive the socket, so it is usually `static const`
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    /// @return The connecting socket (a reference the caller must release), or NULL if any
+    ///         step failed -- nothing is left registered on the queue in that case
+    ///
+    /// Example:
+    /// @code
+    ///   static const NetHandlers handlers = { .connection = onConn, .recv = onRecv,
+    ///                                         .unreachable = onServerGone };
+    ///   NetSocket* s = netqueueConnectDgram(q, _SL("game.example.com"), 7777, &handlers, &state);
+    ///   ...
+    ///   netsocketSend(s, packet, len, NULL, 0);
+    /// @endcode
+    [sal _Ret_maybenull_] unbound NetSocket *connectDgram(strref host, uint16 port,
+        [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
 
     /// Create a stream socket on the queue and start it listening, in one call
     ///
@@ -417,6 +463,15 @@ abstract class NetQueue
     // Hand a message to a flow and make sure something will come along to run it. Takes ownership
     // of the message. `self` may be NULL, in which case the message is simply released.
     [extern] unbound void _submit([inout] NetFlow *flow, [inout] NetMessage *msg);
+
+    // Queue an event that has no flow to ride on, for delivery to the socket-level (or queue-level)
+    // handlers from dispatch -- on a worker, or inside tick() in polled mode, never inline. Copies
+    // `ev`; `sock` may be NULL. Dropped if the queue is shutting down.
+    [extern] unbound void _postEvent([inout] [opt] NetSocket *sock, [in] const NetEvent *ev);
+
+    // Wake whatever runs dispatch for this queue: a worker waiting on the runqueue, or a tick()
+    // parked in its backend wait. For work that arrives from a thread outside the queue.
+    [extern] unbound void _kick();
 
     // Dispatch (dispatch.c)
     //

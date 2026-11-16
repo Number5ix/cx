@@ -68,6 +68,10 @@ static void flushStreamBytes(NetSocket* sock, NetErrorCode* err)
 static intptr dgramSendTo(NetSocket* sock, const uint8* data, size_t len, const NetAddr* dest,
                           const NetPktInfo* info, NetErrorCode* err)
 {
+    // A connected socket is sent on without an address; see netSockSendTo().
+    if (sock->remote.type != NA_Unknown)
+        dest = NULL;
+
     intptr n = netSockSendToEx(sock->handle, data, len, dest, info, err);
     if (n < 0 && _netIsUnreachableErr(*err)) {
 #if !defined(NET_HAVE_ERRQUEUE)
@@ -394,6 +398,21 @@ static NetFlow* dgramSendFlow(NetQueue* q, NetSocket* sock, const NetAddr* dest)
     return netqueue_findFlow(q, sock, (NetAddr*)dest, true);
 }
 
+// Settle where a datagram goes. A connected socket sends only to its peer: no destination means
+// that peer, and any other is refused. An unconnected one needs a destination.
+static bool dgramDest(_In_ NetSocket* sock, _Inout_ const NetAddr** dest)
+{
+    if (sock->remote.type == NA_Unknown)
+        return *dest != NULL;
+
+    if (!*dest) {
+        *dest = &sock->remote;
+        return true;
+    }
+    NetAddr d = **dest;
+    return stCmp(NetAddr, d, sock->remote, ST_Equality) == 0;
+}
+
 bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
                     _In_opt_ const NetAddr* dest, flags_t flags)
 {
@@ -426,7 +445,7 @@ bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
         }
 
         objRelease(&flow);
-    } else if (dest) {
+    } else if (dgramDest(self, &dest)) {
         NetFlow* flow = NULL;
         if (saSize(self->filters) > 0)
             flow = dgramSendFlow(q, self, dest);
@@ -458,7 +477,7 @@ static bool addrIsWildcard(_In_ const NetAddr* a)
 }
 
 bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
-                      _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags)
+                      _In_opt_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;
@@ -466,7 +485,7 @@ bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len,
     // Datagram only, and unfiltered only. A filter chain decides for itself what leaves the socket
     // and in how many pieces, so there is no datagram here for the ancillary request to belong to;
     // the send is refused rather than quietly losing the request.
-    if (self->type != NST_Datagram || !dest || saSize(self->filters) > 0)
+    if (self->type != NST_Datagram || !dgramDest(self, &dest) || saSize(self->filters) > 0)
         return false;
 
     // A socket bound to one of the machine's addresses always leaves from it, so asking for a

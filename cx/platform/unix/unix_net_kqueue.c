@@ -434,6 +434,24 @@ void NetQueueKqueue_connectArm(_In_ NetQueueKqueue* self, NetSocket* sock)
     armInterest(self, sock, true, netsocket_wantWrite(sock));
 }
 
+NetErrorCode NetQueueKqueue_dgramConnect(_In_ NetQueueKqueue* self, NetSocket* sock, const NetAddr* addr)
+{
+    // The connect may replace the handle, so the map entry goes first, for the reason given in
+    // connectBegin. Re-arming afterwards registers whichever handle the socket ends up with.
+    NetSockHandle oldH = sock->handle;
+    if (oldH != NET_INVALID_HANDLE) {
+        withMutex (&self->fdmapLock)
+            htRemove(&self->fdmap, uint64, (uint64)oldH);
+    }
+
+    NetErrorCode err = netsocket_dgramConnectHandle(sock, addr);
+
+    if (sock->handle != NET_INVALID_HANDLE)
+        armInterest(self, sock, true, netsocket_wantWrite(sock));
+
+    return err;
+}
+
 void NetQueueKqueue_acceptArm(_In_ NetQueueKqueue* self, NetSocket* sock)
 {
     armInterest(self, sock, true, false);

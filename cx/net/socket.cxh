@@ -273,8 +273,9 @@ abstract class NetSocket
     /// backlog drains below `sendLow`. `NSO_Immediate` never queues -- it sends what the OS takes
     /// right now and returns true only if the whole payload went out.
     ///
-    /// For connected (stream) sockets, dest is ignored. For connectionless (datagram) sockets, dest
-    /// must be a valid address.
+    /// For stream sockets, dest is ignored. For datagram sockets, dest must be a valid address --
+    /// unless the socket is connected (see connect()), in which case dest is NULL or the connected
+    /// peer, and any other address is refused.
     ///
     /// @note Filters: with a filter attached the payload is run through the destination flow's
     /// filter chain on its way out, so what reaches the wire is whatever the chain produced -- which
@@ -287,7 +288,7 @@ abstract class NetSocket
     ///
     /// @param data Pointer to data to send (copied; need not outlive the call)
     /// @param len Length of data in bytes
-    /// @param dest Destination address (required for connectionless, ignored for connected)
+    /// @param dest Destination address (see above)
     /// @param flags Optional flags to control send behavior
     /// @return true if the data was sent or queued, false if it was refused (over the high watermark,
     ///         not connected, or a fatal socket error)
@@ -306,11 +307,11 @@ abstract class NetSocket
     ///
     /// @param data Pointer to data to send (copied; need not outlive the call)
     /// @param len Length of data in bytes
-    /// @param dest Destination address
+    /// @param dest Destination address, or NULL on a connected socket
     /// @param info Local address and ECN mark to ask for, or NULL for neither
     /// @param flags Optional flags to control send behavior
     /// @return true if the data was sent or queued, false if it was refused
-    [extern] unbound bool sendEx([in] const uint8* data, size_t len, [in] const NetAddr* dest,
+    [extern] unbound bool sendEx([in] const uint8* data, size_t len, [in] [opt] const NetAddr* dest,
         [in] [opt] const NetPktInfo* info, flags_t flags);
 
     /// Ask the OS to report the local address and ECN mark of each received datagram
@@ -336,20 +337,29 @@ abstract class NetSocket
 
     /// Open an outbound connection to a host and port
     ///
-    /// Stream sockets only. This call is asynchronous: it returns immediately after starting the
-    /// process, and the result arrives later as a NET_Connection event on the socket's flow. The
-    /// host is resolved on a dedicated resolver thread, never on a net I/O thread, and the socket
-    /// passes through NS_Resolving and NS_Connecting on the way. Each resolved address is tried
-    /// in turn with a fresh OS handle of the right family, falling through on failure or timeout,
-    /// until one connects or the list is exhausted.
+    /// This call is asynchronous: it returns immediately after starting the process, and the
+    /// result arrives later as a NET_Connection event. The host is resolved on a dedicated resolver
+    /// thread, never on a net I/O thread, and the socket passes through NS_Resolving on the way.
+    ///
+    /// **Stream sockets** pass through NS_Connecting too. Each resolved address is tried in turn
+    /// with a fresh OS handle of the right family, falling through on failure or timeout, until one
+    /// connects or the list is exhausted. NET_Connection arrives on the socket's flow.
+    ///
+    /// **Datagram sockets** take the first resolved address the OS accepts. From then on the socket
+    /// exchanges datagrams with that one peer only: send() and sendEx() may pass NULL for the
+    /// destination, datagrams from anywhere else are discarded by the OS, and NET_PeerUnreachable
+    /// reports a dead peer on every platform. The peer's flow is opened (NET_FlowOpen) and
+    /// NET_Connection is delivered on it. A connect that fails is delivered to the socket-level
+    /// handlers, with no flow. An unbound socket takes a handle of the peer's address family; a
+    /// bound one can only connect to its own family.
     ///
     /// The socket must already be registered with a queue (that is where the resolver, backend,
     /// and flow live). A literal address is accepted directly without a DNS lookup.
     ///
     /// @param host Hostname or literal address to connect to (NULL/empty means loopback)
     /// @param port Port number, host byte order
-    /// @return true if the connect was started, false if it could not be (wrong socket type, no
-    ///         queue, or already connecting/connected)
+    /// @return true if the connect was started, false if it could not be (no queue, or already
+    ///         connecting/connected)
     [extern] bool connect([in] strref host, uint16 port);
 
     [abstract] bool bind(const NetAddr* addr);
@@ -470,6 +480,11 @@ abstract class NetSocket
     // true once the attempt has been initiated (the state machine has been advanced or is now
     // pending).
     [extern] unbound bool _readinessConnect([inout] NetQueue *q, [in] const NetAddr *addr);
+
+    // Shared dgramConnect body: give an unbound datagram socket a fresh handle of the address's
+    // family, then connect() it to that one peer. A datagram connect completes at once, so the
+    // result is returned rather than driven through the connect state machine.
+    [extern] unbound NetErrorCode _dgramConnectHandle([in] const NetAddr *addr);
 
     // Abort an in-flight connect when the socket is being closed. Claims the current attempt the
     // same way the backend completion and the timeout do; if won, drops the connect's resources

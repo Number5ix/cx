@@ -518,6 +518,18 @@ _objinit_guaranteed bool NetQueueSelect_init(_In_ NetQueueSelect* self)
     // Autogen ends -------
 }
 
+NetErrorCode NetQueueSelect_dgramConnect(_In_ NetQueueSelect* self, NetSocket* sock, const NetAddr* addr)
+{
+    // The watch set is rebuilt from sock->handle on every pass, so a replaced handle only needs the
+    // loop to go round again.
+    NetErrorCode err = netsocket_dgramConnectHandle(sock, addr);
+
+    if (self->ingest && self->selset)
+        nselWake((NetSelectSet*)self->selset);
+
+    return err;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "net/queue_select.auto.inc"

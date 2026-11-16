@@ -340,12 +340,13 @@ intptr netSockSendTo(NetSockHandle h, const void* buf, size_t len, const NetAddr
 {
     struct sockaddr_storage sa;
     int sasz = 0;
-    if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+    if (dest && !netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
         *err = NERR_Unknown;
         return -1;
     }
 
-    ssize_t n = sendto((int)h, buf, len, 0, (struct sockaddr*)&sa, (socklen_t)sasz);
+    ssize_t n = dest ? sendto((int)h, buf, len, 0, (struct sockaddr*)&sa, (socklen_t)sasz)
+                     : send((int)h, buf, len, 0);
     if (n < 0) {
         *err = netLastError();
         return -1;

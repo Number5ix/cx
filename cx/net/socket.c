@@ -425,13 +425,14 @@ bool NetSocket_setDontFragment(_In_ NetSocket* self, bool enable)
 // Autogen begins -----
 // clang-format off
 bool NetSocket_send(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, flags_t flags);
-bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags);
+bool NetSocket_sendEx(_In_ NetSocket* self, _In_ const uint8* data, size_t len, _In_opt_ const NetAddr* dest, _In_opt_ const NetPktInfo* info, flags_t flags);
 bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port);
 bool NetSocket__wantWrite(_In_ NetSocket* self);
 void NetSocket__flushSend(_In_ NetSocket* self, _In_opt_ NetQueue* q);
 void NetSocket__sendError(_In_ NetSocket* self, _In_opt_ NetQueue* q, NetErrorCode err, _In_ NetAddr* peer);
 void NetSocket__connectResult(_In_ NetSocket* self, NetErrorCode err);
 bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q, _In_ const NetAddr* addr);
+NetErrorCode NetSocket__dgramConnectHandle(_In_ NetSocket* self, _In_ const NetAddr* addr);
 void NetSocket__connectCancel(_In_ NetSocket* self);
 void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow);
 void NetSocket__closeFlows(_In_ NetSocket* self, NetCloseReason reason);

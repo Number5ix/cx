@@ -569,11 +569,19 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
     lazyInit(&netMsgFnState, netMsgFnInit, NULL);
 
     if (netSendMsgFn && info && (info->haveLocal || info->haveEcn)) {
+        // No destination on a connected socket; the control messages then follow the socket's own
+        // family.
         struct sockaddr_storage sa;
         int sasz = 0;
-        if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
-            *err = NERR_Unknown;
-            return -1;
+        if (dest) {
+            if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+                *err = NERR_Unknown;
+                return -1;
+            }
+        } else {
+            sasz = sizeof(sa);
+            if (getsockname((SOCKET)h, (struct sockaddr*)&sa, &sasz) != 0)
+                sa.ss_family = AF_UNSPEC;
         }
 
         WSABUF iov;
@@ -585,8 +593,8 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
 
         WSAMSG mh;
         memset(&mh, 0, sizeof(mh));
-        mh.name          = (struct sockaddr*)&sa;
-        mh.namelen       = sasz;
+        mh.name          = dest ? (struct sockaddr*)&sa : NULL;
+        mh.namelen       = dest ? sasz : 0;
         mh.lpBuffers     = &iov;
         mh.dwBufferCount = 1;
         mh.Control.buf   = control;
@@ -698,13 +706,13 @@ intptr netSockSendTo(NetSockHandle h, const void* buf, size_t len, const NetAddr
 {
     struct sockaddr_storage sa;
     int sasz = 0;
-    if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+    if (dest && !netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
         *err = NERR_Unknown;
         return -1;
     }
 
-    int n = sendto((SOCKET)h, (const char*)buf, (int)min(len, INT_MAX), 0, (struct sockaddr*)&sa,
-                   sasz);
+    int n = sendto((SOCKET)h, (const char*)buf, (int)min(len, INT_MAX), 0,
+                   dest ? (struct sockaddr*)&sa : NULL, dest ? sasz : 0);
     if (n == SOCKET_ERROR) {
         *err = netLastError();
         return -1;

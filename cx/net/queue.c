@@ -41,6 +41,7 @@ _objinit_guaranteed bool NetQueue_init(_In_ NetQueue* self)
     rwlockInit(&self->lock);
     htInit(&self->timerIdx, uint64, uint32, 16);
     mutexInit(&self->timerLock);
+    mutexInit(&self->ctlLock);
     return true;
     // Autogen ends -------
 }
@@ -335,16 +336,32 @@ void NetQueue_presetServer(_Out_ NetQueueConfig* conf)
     conf->nthreads = max(1, min(8, osLogicalCPUs()));
 }
 
+static NetSocket* connectSocket(NetQueue* self, NetSocketType type, strref host, uint16 port,
+                                const NetHandlers* handlers, void* ctx, NetConnectPrepCB prep,
+                                void* prepctx);
+
 _Ret_maybenull_ NetSocket* NetQueue_connect(_In_ NetQueue* self, _In_opt_ strref host, uint16 port,
                                             _In_opt_ const NetHandlers* handlers,
                                             _In_opt_ void* ctx)
 {
-    return netqueueConnectPrep(self, host, port, handlers, ctx, NULL, NULL);
+    return connectSocket(self, NST_Stream, host, port, handlers, ctx, NULL, NULL);
 }
 
 _Ret_maybenull_ NetSocket* NetQueue_connectPrep(_In_ NetQueue* self, _In_opt_ strref host, uint16 port, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx, NetConnectPrepCB prep, _In_opt_ void* prepctx)
 {
-    NetSocket* sock = netqueueSocket(self, NST_Stream);
+    return connectSocket(self, NST_Stream, host, port, handlers, ctx, prep, prepctx);
+}
+
+_Ret_maybenull_ NetSocket* NetQueue_connectDgram(_In_ NetQueue* self, _In_opt_ strref host, uint16 port, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx)
+{
+    return connectSocket(self, NST_Datagram, host, port, handlers, ctx, NULL, NULL);
+}
+
+static NetSocket* connectSocket(NetQueue* self, NetSocketType type, strref host, uint16 port,
+                                const NetHandlers* handlers, void* ctx, NetConnectPrepCB prep,
+                                void* prepctx)
+{
+    NetSocket* sock = netqueueSocket(self, type);
     if (!sock)
         return NULL;
 
@@ -477,6 +494,9 @@ bool NetQueue_shutdown(_In_ NetQueue* self, int64 timeout)
         objDestroyWeak(&socks.a[i]->queue);
     }
 
+    // Nothing posted before shutdown began is delivered after it.
+    _netCtlEventsClear(self);
+
     // Join the dispatch workers within the timeout. Each drains the runqueue one last time as it
     // exits, so the terminal events just queued are delivered on a worker -- the application sees
     // its NET_FlowClosed callbacks before the queue goes away. A no-op in polled mode.
@@ -502,6 +522,8 @@ void NetQueue_destroy(_In_ NetQueue* self)
     // and the workers array are torn down by the autogen block below.)
     netqueue_stopWorkers(self, timeForever);
 
+    _netCtlEventsClear(self);
+
     // Anything still on the runqueue holds a reference that has to come back.
     NetFlow* flow;
     while ((flow = (NetFlow*)prqPop(&self->runq)) != NULL) {
@@ -526,6 +548,7 @@ void NetQueue_destroy(_In_ NetQueue* self)
     mutexDestroy(&self->timerLock);
     saDestroy(&self->workers);
     semaDestroy(&self->runqSema);
+    mutexDestroy(&self->ctlLock);
     // Autogen ends -------
 }
 
@@ -702,6 +725,8 @@ bool NetQueue__dgramRecvError(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
 // Autogen begins -----
 // clang-format off
 void NetQueue__submit(_In_ NetQueue* self, _Inout_ NetFlow* flow, _Inout_ NetMessage* msg);
+void NetQueue__postEvent(_In_ NetQueue* self, _Inout_opt_ NetSocket* sock, _In_ const NetEvent* ev);
+void NetQueue__kick(_In_ NetQueue* self);
 bool NetQueue__dispatch(_In_ NetQueue* self);
 void NetQueue__deliver(_In_ NetQueue* self, _In_opt_ NetSocket* sock, _In_opt_ NetFlow* flow, _Inout_ NetEvent* ev);
 NetTimerId NetQueue__addTimer(_In_ NetQueue* self, _Inout_ NetFlow* flow, int64 delay, flags_t flags, NetTimerFn fn, _In_opt_ void* ctx);

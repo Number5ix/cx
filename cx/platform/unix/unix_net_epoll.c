@@ -625,6 +625,24 @@ _objinit_guaranteed bool NetQueueEpoll_init(_In_ NetQueueEpoll* self)
     // Autogen ends -------
 }
 
+NetErrorCode NetQueueEpoll_dgramConnect(_In_ NetQueueEpoll* self, NetSocket* sock, const NetAddr* addr)
+{
+    // The connect may replace the handle, so the map entry goes first, for the reason given in
+    // connectBegin. Re-arming afterwards registers whichever handle the socket ends up with.
+    NetSockHandle oldH = sock->handle;
+    if (oldH != NET_INVALID_HANDLE) {
+        withMutex (&self->fdmapLock)
+            htRemove(&self->fdmap, uint64, (uint64)oldH);
+    }
+
+    NetErrorCode err = netsocket_dgramConnectHandle(sock, addr);
+
+    if (sock->handle != NET_INVALID_HANDLE)
+        armInterest(self, sock, true, netsocket_wantWrite(sock));
+
+    return err;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "platform/unix/unix_net_epoll.auto.inc"

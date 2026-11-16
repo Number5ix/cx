@@ -555,8 +555,82 @@ static bool drainFlow(NetQueue* q, NetSocket* sock, NetFlow* flow, bool gatedCtl
 }
 
 _Use_decl_annotations_
+_Use_decl_annotations_
+void NetQueue__kick(NetQueue* self)
+{
+    if (saSize(self->workers) > 0)
+        semaInc(&self->runqSema, 1);
+    if (self->wake)
+        self->wake(self->wakeCtx);
+}
+
+_Use_decl_annotations_
+void NetQueue__postEvent(NetQueue* self, NetSocket* sock, const NetEvent* ev)
+{
+    if (_netqueueShuttingDown(self))
+        return;
+
+    NetCtlEvent* ce = xaAllocStruct(NetCtlEvent, XA_Zero);
+    ce->sock        = sock ? objAcquire(sock) : NULL;
+    ce->ev          = *ev;
+
+    withMutex (&self->ctlLock) {
+        if (self->ctlTail)
+            ((NetCtlEvent*)self->ctlTail)->next = ce;
+        else
+            self->ctlHead = ce;
+        self->ctlTail = ce;
+    }
+    atomicFetchAdd(uint32, &self->nctl, 1, Release);
+
+    netqueue_kick(self);
+}
+
+// Take the oldest control event, or NULL if there is none.
+static NetCtlEvent* popCtlEvent(NetQueue* q)
+{
+    if (atomicLoad(uint32, &q->nctl, Acquire) == 0)
+        return NULL;
+
+    NetCtlEvent* ce = NULL;
+    withMutex (&q->ctlLock) {
+        ce = (NetCtlEvent*)q->ctlHead;
+        if (ce) {
+            q->ctlHead = ce->next;
+            if (!q->ctlHead)
+                q->ctlTail = NULL;
+        }
+    }
+    if (ce)
+        atomicFetchSub(uint32, &q->nctl, 1, AcqRel);
+    return ce;
+}
+
+void _netCtlEventFree(_Inout_ NetCtlEvent** pce)
+{
+    NetCtlEvent* ce = *pce;
+    *pce            = NULL;
+    objRelease(&ce->sock);
+    xaFree(ce);
+}
+
+void _netCtlEventsClear(_Inout_ NetQueue* q)
+{
+    NetCtlEvent* ce;
+    while ((ce = popCtlEvent(q)) != NULL)
+        _netCtlEventFree(&ce);
+}
+
 bool NetQueue__dispatch(NetQueue* self)
 {
+    NetCtlEvent* ce = popCtlEvent(self);
+    if (ce) {
+        NetEvent ev = ce->ev;
+        netqueue_deliver(self, ce->sock, NULL, &ev);
+        _netCtlEventFree(&ce);
+        return true;
+    }
+
     NetFlow* flow = (NetFlow*)prqPop(&self->runq);
     if (!flow)
         return false;

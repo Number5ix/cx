@@ -566,9 +566,16 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         op->wsabuf.buf = (CHAR*)(m->buf ? m->buf->data : NULL);
         op->wsabuf.len = (ULONG)min(len, (size_t)ULONG_MAX);
 
-        int sasz = 0;
         // Reuse the op's sockaddr storage (a recv would hold the source here) for the destination.
-        netAddrToSockaddr(&m->addr, &op->from, &sasz);
+        // A connected socket is sent on without one, as the shared send path does.
+        int sasz       = 0;
+        bool connected = sock->remote.type != NA_Unknown;
+        if (connected) {
+            int lsz = sizeof(op->from);   // only the family, for the control messages
+            getsockname((SOCKET)sock->handle, (struct sockaddr*)&op->from, &lsz);
+        } else {
+            netAddrToSockaddr(&m->addr, &op->from, &sasz);
+        }
 
         sock->sendPending = true;
         atomicFetchAdd(uint32, &self->iops, 1, AcqRel);
@@ -581,7 +588,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         NetSendMsgFn sendMsgFn =
             (m->info.haveLocal || m->info.haveEcn) ? _netSendMsgFn() : NULL;
         if (sendMsgFn) {
-            op->msg.name          = (struct sockaddr*)&op->from;
+            op->msg.name          = connected ? NULL : (struct sockaddr*)&op->from;
             op->msg.namelen       = sasz;
             op->msg.lpBuffers     = &op->wsabuf;
             op->msg.dwBufferCount = 1;
@@ -594,7 +601,7 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
         } else
 #endif
             rc = WSASendTo((SOCKET)sock->handle, &op->wsabuf, 1, NULL, 0,
-                           (struct sockaddr*)&op->from, sasz, &op->ov, NULL);
+                           connected ? NULL : (struct sockaddr*)&op->from, sasz, &op->ov, NULL);
         int we = rc == SOCKET_ERROR ? WSAGetLastError() : 0;
         if (rc == SOCKET_ERROR && we != WSA_IO_PENDING) {
             atomicFetchSub(uint32, &self->iops, 1, AcqRel);
@@ -1274,6 +1281,23 @@ _objinit_guaranteed bool NetQueueWinIOCP_init(_In_ NetQueueWinIOCP* self)
     mutexInit(&self->opLock);
     return true;
     // Autogen ends -------
+}
+
+NetErrorCode NetQueueWinIOCP_dgramConnect(_In_ NetQueueWinIOCP* self, NetSocket* sock, const NetAddr* addr)
+{
+    NetSockHandle oldH = sock->handle;
+    NetErrorCode err   = netsocket_dgramConnectHandle(sock, addr);
+
+    // A replaced handle took its port association with it. Receives posted on the old one (an
+    // unbound socket has none) complete aborted.
+    if (sock->handle != oldH && sock->handle != NET_INVALID_HANDLE &&
+        !CreateIoCompletionPort((HANDLE)sock->handle, (HANDLE)self->iocp, (ULONG_PTR)sock, 0))
+        return NERR_Unknown;
+
+    if (err == NERR_None)
+        topUpRecvFrom(self, sock);
+
+    return err;
 }
 
 // Autogen begins -----

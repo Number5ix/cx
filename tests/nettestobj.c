@@ -133,6 +133,15 @@ bool NetQueueTest_tick(_In_ NetQueueTest* self, int64 wait)
     return ran;
 }
 
+// No real sockets here either; datagram connect is exercised over loopback by the real backends.
+NetErrorCode NetQueueTest_dgramConnect(_In_ NetQueueTest* self, NetSocket* sock, const NetAddr* addr)
+{
+    unused_noeval(self);
+    unused_noeval(sock);
+    unused_noeval(addr);
+    return NERR_Unknown;
+}
+
 // Autogen begins -----
 // clang-format off
 #include "nettestobj.auto.inc"

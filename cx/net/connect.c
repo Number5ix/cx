@@ -387,9 +387,95 @@ static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
     connectNext(sock, NERR_None);
 }
 
+_Use_decl_annotations_
+NetErrorCode NetSocket__dgramConnectHandle(NetSocket* self, const NetAddr* addr)
+{
+    // An unbound socket was made IPv4 and nothing has seen its handle but the backend, which is
+    // following along; a bound one keeps the family it was bound with.
+    if (self->local.type == NA_Unknown) {
+        if (!netPlatformResetSocket(self, addr->type, false))
+            return NERR_Unknown;
+    } else if (self->local.type != addr->type) {
+        return NERR_NetworkUnreachable;
+    }
+
+    NetErrorCode err    = NERR_None;
+    NetConnectStatus st = netSockConnect(self->handle, addr, &err);
+    if (st == NETCONN_Failed)
+        return err != NERR_None ? err : NERR_Unknown;
+    return NERR_None;
+}
+
+// Finish a datagram connect: take the first address the OS accepts, open that peer's flow, and
+// announce the connection on it -- or announce the failure at socket level, where there is no flow
+// to put it on. Runs on the connecting thread for a literal and on the resolver thread otherwise,
+// with the socket still NS_Resolving, so nothing else is touching its connect state. Consumes the
+// connect's self-reference.
+static void dgramConnectAddrs(NetSocket* sock, NetQueue* q, sa_NetAddr* addrs, NetErrorCode err)
+{
+    NetAddr peer = { 0 };
+    bool ok      = false;
+
+    if (err == NERR_None) {
+        applyConnectPref(addrs, sock->connectPref);
+        err = NERR_HostUnreachable;
+        for (int32 i = 0; i < saSize(*addrs) && !ok; i++) {
+            if (atomicLoad(uint32, &sock->state, Acquire) == NS_Closed)
+                break;
+            err = netqueueDgramConnect(q, sock, &addrs->a[i]);
+            if (err == NERR_None) {
+                peer = addrs->a[i];
+                ok   = true;
+            }
+        }
+    }
+
+    // A close that lands in the meantime wins; the socket is going away and hears nothing more.
+    uint32 expected = NS_Resolving;
+    if (ok) {
+        sock->remote = peer;
+        if (atomicCompareExchange(uint32, strong, &sock->state, &expected, NS_Connected, AcqRel,
+                                  Relaxed)) {
+            NetFlow* flow = netqueuePromoteFlow(q, sock, &peer);
+            if (flow) {
+                NetMessage* msg = netpoolAllocHeader(q->pool);
+                msg->kind       = NMSG_Connect;
+                msg->bytes      = (size_t)NERR_None;
+                netqueue_submit(q, flow, msg);
+                objRelease(&flow);
+            }
+        }
+    } else if (atomicCompareExchange(uint32, strong, &sock->state, &expected, NS_Init, AcqRel,
+                                     Relaxed)) {
+        NetEvent ev   = { .event = NET_Connection };
+        ev.conn.state = NCS_NotConnected;
+        ev.conn.err   = err;
+        netqueue_postEvent(q, sock, &ev);
+    }
+
+    netqueue_kick(q);
+    objRelease(&sock);
+}
+
+// Resolver callback for a datagram connect, on a resolver worker thread.
+static void dgramResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
+{
+    NetSocket* sock = (NetSocket*)ctx;
+    NetQueue* q     = objAcquireFromWeak(NetQueue, sock->queue);
+    if (!q) {
+        objRelease(&sock);
+        return;
+    }
+
+    if (err == NERR_None && (!addrs || saSize(*addrs) == 0))
+        err = NERR_HostUnreachable;
+    dgramConnectAddrs(sock, q, addrs, err);
+    objRelease(&q);
+}
+
 bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
 {
-    if (self->type != NST_Stream)
+    if (self->type != NST_Stream && self->type != NST_Datagram)
         return false;
 
     // A connect needs the queue: the resolver, the backend, and the flow the event is delivered on
@@ -414,6 +500,16 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
     NetAddr lit;
     if (netAddrFromStr(&lit, host)) {
         lit.port = port;
+        if (self->type == NST_Datagram) {
+            sa_NetAddr one;
+            saInit(&one, NetAddr, 1);
+            saPush(&one, NetAddr, lit);
+            dgramConnectAddrs(self, q, &one, NERR_None);
+            saDestroy(&one);
+            objRelease(&q);
+            return true;
+        }
+
         saPush(&self->connQueue, NetAddr, lit);
         self->connectIdx = 0;
         atomicStore(uint32, &self->state, NS_Connecting, Release);
@@ -423,7 +519,8 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
     }
 
     // Hostname: resolve asynchronously on the dedicated, bounded resolver queue.
-    if (!_netResolveSubmit(host, port, netsocketResolved, self)) {
+    if (!_netResolveSubmit(host, port,
+                           self->type == NST_Datagram ? dgramResolved : netsocketResolved, self)) {
         atomicStore(uint32, &self->state, NS_Init, Release);
         objRelease(&self);
         objRelease(&q);

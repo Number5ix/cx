@@ -415,7 +415,7 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
 {
     struct sockaddr_storage sa;
     int sasz = 0;
-    if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+    if (dest && !netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
         *err = NERR_Unknown;
         return -1;
     }
@@ -423,14 +423,16 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
     struct iovec iov = { .iov_base = (void*)buf, .iov_len = len };
     uint8 control[NET_CMSG_SPACE];
 
+    // No destination on a connected socket: the BSDs refuse one there, even the connected peer's.
     struct msghdr mh;
     memset(&mh, 0, sizeof(mh));
-    mh.msg_name    = &sa;
-    mh.msg_namelen = (socklen_t)sasz;
+    mh.msg_name    = dest ? &sa : NULL;
+    mh.msg_namelen = dest ? (socklen_t)sasz : 0;
     mh.msg_iov     = &iov;
     mh.msg_iovlen  = 1;
 
-    bool v6 = sa.ss_family == AF_INET6;
+    int family = dest ? sa.ss_family : sockFamily((int)h);
+    bool v6    = family == AF_INET6;
     memset(control, 0, sizeof(control));
     mh.msg_control    = control;
     mh.msg_controllen = sizeof(control);
@@ -440,7 +442,7 @@ intptr netSockSendToEx(NetSockHandle h, const void* buf, size_t len, const NetAd
     if (info && info->haveLocal && cm) {
         struct sockaddr_storage ls;
         int lsz = 0;
-        if (netAddrToSockaddr((NetAddr*)&info->local, &ls, &lsz) && ls.ss_family == sa.ss_family) {
+        if (netAddrToSockaddr((NetAddr*)&info->local, &ls, &lsz) && ls.ss_family == family) {
             if (v6) {
                 struct in6_pktinfo pi;
                 memset(&pi, 0, sizeof(pi));
@@ -679,12 +681,13 @@ intptr netSockSendTo(NetSockHandle h, const void* buf, size_t len, const NetAddr
 {
     struct sockaddr_storage sa;
     int sasz = 0;
-    if (!netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
+    if (dest && !netAddrToSockaddr((NetAddr*)dest, &sa, &sasz)) {
         *err = NERR_Unknown;
         return -1;
     }
 
-    ssize_t n = sendto((int)h, buf, len, 0, (struct sockaddr*)&sa, (socklen_t)sasz);
+    ssize_t n = dest ? sendto((int)h, buf, len, 0, (struct sockaddr*)&sa, (socklen_t)sasz)
+                     : send((int)h, buf, len, 0);
     if (n < 0) {
         *err = netLastError();
         return -1;
