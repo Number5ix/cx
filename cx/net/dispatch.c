@@ -62,6 +62,8 @@ static NetEventCB pickHandler(const NetHandlers* h, NetEventType ev)
         return h->timer;
     case NET_PeerUnreachable:
         return h->unreachable;
+    case NET_Resolved:
+        return h->resolved;
     }
 
     return NULL;
@@ -179,6 +181,8 @@ static strref netEventName(NetEventType ev)
         return _SL("timer");
     case NET_PeerUnreachable:
         return _SL("unreachable");
+    case NET_Resolved:
+        return _SL("resolved");
     }
 
     return _SL("unknown");
@@ -573,37 +577,53 @@ void NetQueue__postEvent(NetQueue* self, NetSocket* sock, const NetEvent* ev)
     NetCtlEvent* ce = xaAllocStruct(NetCtlEvent, XA_Zero);
     ce->sock        = sock ? objAcquire(sock) : NULL;
     ce->ev          = *ev;
-
-    withMutex (&self->ctlLock) {
-        if (self->ctlTail)
-            ((NetCtlEvent*)self->ctlTail)->next = ce;
-        else
-            self->ctlHead = ce;
-        self->ctlTail = ce;
-    }
-    atomicFetchAdd(uint32, &self->nctl, 1, Release);
-
-    netqueue_kick(self);
+    _netCtlEventPush(self, ce);
 }
 
-// Take the oldest control event, or NULL if there is none.
+void _netCtlEventPush(_Inout_ NetQueue* q, _Inout_ NetCtlEvent* ce)
+{
+    withMutex (&q->ctlLock) {
+        if (q->ctlTail)
+            ((NetCtlEvent*)q->ctlTail)->next = ce;
+        else
+            q->ctlHead = ce;
+        q->ctlTail = ce;
+    }
+    atomicFetchAdd(uint32, &q->nctl, 1, Release);
+
+    netqueue_kick(q);
+}
+
+// Take the oldest control event, or NULL if there is none. A lookup's result leaves the index a
+// cancel searches in the same step, so a cancel either finds it here first or reports that it was
+// too late; a cancelled one is dropped and the next is taken instead.
 static NetCtlEvent* popCtlEvent(NetQueue* q)
 {
-    if (atomicLoad(uint32, &q->nctl, Acquire) == 0)
-        return NULL;
+    for (;;) {
+        if (atomicLoad(uint32, &q->nctl, Acquire) == 0)
+            return NULL;
 
-    NetCtlEvent* ce = NULL;
-    withMutex (&q->ctlLock) {
-        ce = (NetCtlEvent*)q->ctlHead;
-        if (ce) {
-            q->ctlHead = ce->next;
-            if (!q->ctlHead)
-                q->ctlTail = NULL;
+        NetCtlEvent* ce = NULL;
+        bool cancelled  = false;
+        withMutex (&q->ctlLock) {
+            ce = (NetCtlEvent*)q->ctlHead;
+            if (ce) {
+                q->ctlHead = ce->next;
+                if (!q->ctlHead)
+                    q->ctlTail = NULL;
+                if (ce->ev.event == NET_Resolved)
+                    htRemove(&q->resolves, uint64, ce->ev.resolved.id);
+                cancelled = ce->cancelled;
+            }
         }
-    }
-    if (ce)
+        if (!ce)
+            return NULL;
+
         atomicFetchSub(uint32, &q->nctl, 1, AcqRel);
-    return ce;
+        if (!cancelled)
+            return ce;
+        _netCtlEventFree(&ce);
+    }
 }
 
 void _netCtlEventFree(_Inout_ NetCtlEvent** pce)
@@ -611,7 +631,33 @@ void _netCtlEventFree(_Inout_ NetCtlEvent** pce)
     NetCtlEvent* ce = *pce;
     *pce            = NULL;
     objRelease(&ce->sock);
+    strDestroy(&ce->host);
+    saDestroy(&ce->addrs);
+    objDestroyWeak(&ce->queue);
     xaFree(ce);
+}
+
+// Deliver a control event: to the handlers it carries if one of them takes this event, else to the
+// socket and queue levels as usual.
+static void deliverCtlEvent(NetQueue* q, NetCtlEvent* ce)
+{
+    NetEvent ev = ce->ev;
+    if (ev.event == NET_Resolved) {
+        ev.resolved.host  = ce->host;
+        ev.resolved.addrs = &ce->addrs;
+    }
+
+    NetEventCB cb = pickHandler(ce->handlers, ev.event);
+    if (!cb) {
+        netqueue_deliver(q, ce->sock, NULL, &ev);
+        return;
+    }
+
+    ev.queue  = q;
+    ev.socket = ce->sock;
+    ev.flow   = NULL;
+    ev.ctx    = ce->ctx;
+    cb(&ev);
 }
 
 void _netCtlEventsClear(_Inout_ NetQueue* q)
@@ -625,8 +671,7 @@ bool NetQueue__dispatch(NetQueue* self)
 {
     NetCtlEvent* ce = popCtlEvent(self);
     if (ce) {
-        NetEvent ev = ce->ev;
-        netqueue_deliver(self, ce->sock, NULL, &ev);
+        deliverCtlEvent(self, ce);
         _netCtlEventFree(&ce);
         return true;
     }

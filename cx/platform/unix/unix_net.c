@@ -218,6 +218,12 @@ NetErrorCode netPlatformResolve(strref host, uint16 port, sa_NetAddr* out)
 
     struct addrinfo* res = NULL;
     int rc                = getaddrinfo(node, NULL, &hints, &res);
+    if (rc == EAI_NONAME
+#if defined(EAI_NODATA) && EAI_NODATA != EAI_NONAME
+        || rc == EAI_NODATA
+#endif
+    )
+        return NERR_NameNotFound;
     if (rc != 0)
         return NERR_HostUnreachable;
 

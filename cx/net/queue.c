@@ -42,6 +42,7 @@ _objinit_guaranteed bool NetQueue_init(_In_ NetQueue* self)
     htInit(&self->timerIdx, uint64, uint32, 16);
     mutexInit(&self->timerLock);
     mutexInit(&self->ctlLock);
+    htInit(&self->resolves, uint64, ptr, 16);
     return true;
     // Autogen ends -------
 }
@@ -549,6 +550,7 @@ void NetQueue_destroy(_In_ NetQueue* self)
     saDestroy(&self->workers);
     semaDestroy(&self->runqSema);
     mutexDestroy(&self->ctlLock);
+    htDestroy(&self->resolves);
     // Autogen ends -------
 }
 
@@ -724,6 +726,8 @@ bool NetQueue__dgramRecvError(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In_
 
 // Autogen begins -----
 // clang-format off
+NetResolveId NetQueue_resolve(_In_ NetQueue* self, _In_opt_ strref host, uint16 port, _In_opt_ const NetHandlers* handlers, _In_opt_ void* ctx);
+bool NetQueue_cancelResolve(_In_ NetQueue* self, NetResolveId id);
 void NetQueue__submit(_In_ NetQueue* self, _Inout_ NetFlow* flow, _Inout_ NetMessage* msg);
 void NetQueue__postEvent(_In_ NetQueue* self, _Inout_opt_ NetSocket* sock, _In_ const NetEvent* ev);
 void NetQueue__kick(_In_ NetQueue* self);

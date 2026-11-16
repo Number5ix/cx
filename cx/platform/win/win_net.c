@@ -254,8 +254,10 @@ NetErrorCode netPlatformResolve(strref host, uint16 port, sa_NetAddr* out)
 
     struct addrinfo* res = NULL;
     int rc               = getaddrinfo(node, NULL, &hints, &res);
+    if (rc == WSAHOST_NOT_FOUND || rc == WSANO_DATA)
+        return NERR_NameNotFound;
     if (rc != 0)
-        return _netMapWsaError(WSAGetLastError());
+        return _netMapWsaError(rc);
 
     // Push every resolved address in the order the resolver returned them; the connect state machine
     // tries them sequentially. The service was left NULL, so set the caller's port explicitly.

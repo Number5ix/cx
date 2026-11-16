@@ -224,7 +224,21 @@ typedef struct NetCtlEvent {
     struct NetCtlEvent* next;
     NetSocket* sock;   // strong, or NULL for a queue-level event
     NetEvent ev;
+
+    // Handlers tried ahead of the socket and queue levels, with their ctx (netqueueResolve's).
+    const NetHandlers* handlers;
+    void* ctx;
+
+    // A NET_Resolved event owns the result its payload points into, and is reached through
+    // NetQueue::resolves by id until it is delivered, so a cancel can still find it.
+    string host;
+    sa_NetAddr addrs;
+    Weak(NetQueue)* queue;   // the resolver thread's only hold on the queue, which may go first
+    bool cancelled;          // guarded by the queue's ctlLock
 } NetCtlEvent;
+
+// Queue an already-built control event (see netqueue_postEvent). Takes ownership.
+void _netCtlEventPush(_Inout_ NetQueue* q, _Inout_ NetCtlEvent* ce);
 
 // Release a control event and the socket reference it holds.
 void _netCtlEventFree(_Inout_ NetCtlEvent** pce);

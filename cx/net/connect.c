@@ -265,69 +265,6 @@ bool NetSocket__readinessConnect(_In_ NetSocket* self, _Inout_ NetQueue* q,
     return true;
 }
 
-// RFC 8305 section 4 address-family interleave: alternate families so a dead or broken one costs
-// at most one attempt before the other gets a turn, rather than exhausting every address of one
-// family first. `lead` is which family goes first -- normally the first address the resolver
-// returned (matching the OS/RFC 6724 destination-selection preference it already applied), or a
-// forced choice from NetConnectPref. Each family keeps its own relative order; once one runs out,
-// the rest of the other is appended unchanged. A no-op if fewer than two addresses are present.
-static void interleaveAddrsByFamily(sa_NetAddr* addrs, NetAddrType lead)
-{
-    int32 n = saSize(*addrs);
-    if (n < 2)
-        return;
-
-    sa_NetAddr primary, secondary;
-    saInit(&primary, NetAddr, n);
-    saInit(&secondary, NetAddr, n);
-    for (int32 i = 0; i < n; i++) {
-        if (addrs->a[i].type == lead)
-            saPush(&primary, NetAddr, addrs->a[i]);
-        else
-            saPush(&secondary, NetAddr, addrs->a[i]);
-    }
-
-    saClear(addrs);
-    int32 pi = 0, si = 0;
-    while (pi < saSize(primary) || si < saSize(secondary)) {
-        if (pi < saSize(primary))
-            saPush(addrs, NetAddr, primary.a[pi++]);
-        if (si < saSize(secondary))
-            saPush(addrs, NetAddr, secondary.a[si++]);
-    }
-
-    saDestroy(&primary);
-    saDestroy(&secondary);
-}
-
-// Apply the resolved socket's NetConnectPref to the raw resolver result: filter to one family for
-// *Only, otherwise interleave with the requested (or resolver-order) family leading. Runs before
-// the result is copied into connQueue, so the state machine always walks an already-ordered list.
-static void applyConnectPref(sa_NetAddr* addrs, NetConnectPref pref)
-{
-    if (pref == NCP_V4Only || pref == NCP_V6Only) {
-        NetAddrType keep = pref == NCP_V4Only ? NA_IPv4 : NA_IPv6;
-        int32 out        = 0;
-        for (int32 i = 0; i < saSize(*addrs); i++) {
-            if (addrs->a[i].type == keep)
-                addrs->a[out++] = addrs->a[i];
-        }
-        saSetSize(addrs, out);
-        return;
-    }
-
-    if (saSize(*addrs) == 0)
-        return;
-
-    NetAddrType lead = addrs->a[0].type;
-    if (pref == NCP_PreferV4)
-        lead = NA_IPv4;
-    else if (pref == NCP_PreferV6)
-        lead = NA_IPv6;
-
-    interleaveAddrsByFamily(addrs, lead);
-}
-
 // True if no address at or after connIdx in connQueue shares `type` -- i.e. addr is the last
 // remaining candidate for its family. Used to decide whether an attempt gets the full
 // connectTimeout (last chance for this family) or the shorter connectAttemptTimeout (another
@@ -344,7 +281,7 @@ static bool connectIsLastOfFamily(NetSocket* sock, NetAddrType type)
 // Resolver callback, invoked on a resolver worker thread. Fills connQueue in the resolved order and
 // kicks off the first attempt, or fails the connect on a resolution error. No attempt is in flight
 // here (no attempt timer is armed), so writing connQueue/state without a lock is safe.
-static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
+static void netsocketResolvedStep(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
 {
     NetSocket* sock = (NetSocket*)ctx;
 
@@ -370,7 +307,7 @@ static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
     // NCP_V4Only/NCP_V6Only may drop every address (the host has none of the requested family);
     // an interleave-only preference cannot empty the list. Either way this must run before the
     // empty check, not after, since it can be the thing that produces the empty result.
-    applyConnectPref(addrs, sock->connectPref);
+    netAddrOrderForConnect(addrs, sock->connectPref);
     if (saSize(*addrs) == 0) {
         NetQueue* q = objAcquireFromWeak(NetQueue, sock->queue);
         connectFinishFail(sock, q, NERR_HostUnreachable);
@@ -385,6 +322,21 @@ static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
     sock->connectIdx = 0;
     atomicStore(uint32, &sock->state, NS_Connecting, Release);
     connectNext(sock, NERR_None);
+}
+
+static void netsocketResolved(sa_NetAddr* addrs, NetErrorCode err, void* ctx)
+{
+    // The step may leave the socket's queue nothing to wake it: an event queued from this thread, or
+    // a handle a polled backend has not seen yet. Hold the queue across it so it can be kicked after.
+    NetSocket* sock = (NetSocket*)ctx;
+    NetQueue* q     = objAcquireFromWeak(NetQueue, sock->queue);
+
+    netsocketResolvedStep(addrs, err, ctx);
+
+    if (q) {
+        netqueue_kick(q);
+        objRelease(&q);
+    }
 }
 
 _Use_decl_annotations_
@@ -417,7 +369,7 @@ static void dgramConnectAddrs(NetSocket* sock, NetQueue* q, sa_NetAddr* addrs, N
     bool ok      = false;
 
     if (err == NERR_None) {
-        applyConnectPref(addrs, sock->connectPref);
+        netAddrOrderForConnect(addrs, sock->connectPref);
         err = NERR_HostUnreachable;
         for (int32 i = 0; i < saSize(*addrs) && !ok; i++) {
             if (atomicLoad(uint32, &sock->state, Acquire) == NS_Closed)

@@ -2374,6 +2374,293 @@ static int dgramIPv6Body(MakeDgramQueueFn make)
 }
 
 // ---------------------------------------------------------------------------------------------
+// netqueueResolve: the public name lookup, delivered through the queue
+// ---------------------------------------------------------------------------------------------
+
+typedef struct ResolveRec {
+    atomic(uint32) count;
+    NetResolveId id;
+    NetErrorCode err;
+    int32 naddrs;
+    bool portsOk;      // every address carries the requested port
+    bool loopback;     // some address is 127.0.0.1 or ::1
+    NetAddrType firstType;
+    intptr thread;     // OS thread the handler ran on
+    void* ctx;
+    uint16 port;
+} ResolveRec;
+
+static void onResolved(NetEvent* ev)
+{
+    ResolveRec* r = (ResolveRec*)ev->ctx;
+    r->id         = ev->resolved.id;
+    r->err        = ev->resolved.err;
+    r->naddrs     = saSize(*ev->resolved.addrs);
+    r->portsOk    = true;
+    r->loopback   = false;
+    r->firstType  = r->naddrs > 0 ? ev->resolved.addrs->a[0].type : NA_Unknown;
+    r->thread     = thrCurrentOSThreadID();
+    r->ctx        = ev->ctx;
+    r->port       = ev->resolved.port;
+
+    NetAddr lo4, lo6;
+    netAddrFromStr(&lo4, _SL("127.0.0.1"));
+    netAddrFromStr(&lo6, _SL("::1"));
+    for (int32 i = 0; i < r->naddrs; i++) {
+        NetAddr a = ev->resolved.addrs->a[i];
+        if (a.port != ev->resolved.port)
+            r->portsOk = false;
+        a.port = 0;
+        if (stCmp(NetAddr, a, lo4, ST_Equality) == 0 || stCmp(NetAddr, a, lo6, ST_Equality) == 0)
+            r->loopback = true;
+    }
+    atomicFetchAdd(uint32, &r->count, 1, Release);
+}
+
+static const NetHandlers resolveHandlers = { .resolved = onResolved };
+
+static NetQueue* makePolledQueue(void)
+{
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    return netqueueCreate(&conf);
+}
+
+static void tickUntilResolved(NetQueue* q, ResolveRec* r)
+{
+    int64 deadline = clockTimer() + timeS(10);
+    while (atomicLoad(uint32, &r->count, Acquire) == 0 && clockTimer() < deadline)
+        netqueueTick(q, timeMS(50));
+}
+
+// A host name resolves in polled mode, delivered inside netqueueTick() on the calling thread, with
+// the requested port on every address.
+static int test_nettest_resolve_localhost(void)
+{
+    int ret        = 0;
+    ResolveRec rec = { 0 };
+
+    NetQueue* q = makePolledQueue();
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    NetResolveId id = netqueueResolve(q, _SL("localhost"), 4321, &resolveHandlers, &rec);
+    if (id == 0)
+        TEST_FAILV(ret, 1, _SL("netqueueResolve() did not start"), stvNone);
+    tickUntilResolved(q, &rec);
+
+    if (atomicLoad(uint32, &rec.count, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("NET_Resolved delivered ${uint} times"),
+                   stvar(uint32, atomicLoad(uint32, &rec.count, Acquire)));
+    if (rec.id != id || rec.ctx != &rec || rec.port != 4321)
+        TEST_FAILV(ret, 1, _SL("NET_Resolved carried the wrong id, ctx or port"), stvNone);
+    if (rec.err != NERR_None || rec.naddrs == 0 || !rec.portsOk || !rec.loopback)
+        TEST_FAILV(ret, 1, _SL("localhost: err=${int} naddrs=${int} portsOk=${bool} loopback=${bool}"),
+                   stvar(int32, rec.err), stvar(int32, rec.naddrs), stvar(bool, rec.portsOk),
+                   stvar(bool, rec.loopback));
+    if (rec.thread != thrCurrentOSThreadID())
+        TEST_FAILV(ret, 1, _SL("NET_Resolved ran on another thread in polled mode"), stvNone);
+
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// A literal of either family comes back as itself, through the queue rather than inline.
+static int test_nettest_resolve_literal(void)
+{
+    int ret     = 0;
+    NetQueue* q = makePolledQueue();
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    static const struct {
+        const char* lit;
+        NetAddrType type;
+    } cases[] = { { "127.0.0.1", NA_IPv4 }, { "::1", NA_IPv6 } };
+
+    for (int i = 0; i < 2; i++) {
+        ResolveRec rec = { 0 };
+        string lit     = 0;
+        strDup(&lit, (strref)cases[i].lit);
+        netqueueResolve(q, lit, 80, &resolveHandlers, &rec);
+        if (atomicLoad(uint32, &rec.count, Acquire) != 0)
+            TEST_FAILV(ret, 1, _SL("'${string}' delivered inline"), stvar(strref, lit));
+        tickUntilResolved(q, &rec);
+        if (atomicLoad(uint32, &rec.count, Acquire) != 1 || rec.err != NERR_None ||
+            rec.naddrs != 1 || rec.firstType != cases[i].type || !rec.portsOk || !rec.loopback)
+            TEST_FAILV(ret, 1, _SL("'${string}': err=${int} naddrs=${int} type=${int}"),
+                       stvar(strref, lit), stvar(int32, rec.err), stvar(int32, rec.naddrs),
+                       stvar(int32, rec.firstType));
+        strDestroy(&lit);
+    }
+
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// A name the name service has no address for is an error, not an empty success. RFC 6761 reserves
+// .invalid so that no resolver ever answers for it.
+static int test_nettest_resolve_nxdomain(void)
+{
+    int ret        = 0;
+    ResolveRec rec = { 0 };
+
+    NetQueue* q = makePolledQueue();
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    netqueueResolve(q, _SL("no-such-host.invalid"), 80, &resolveHandlers, &rec);
+    tickUntilResolved(q, &rec);
+
+    if (atomicLoad(uint32, &rec.count, Acquire) != 1 || rec.err != NERR_NameNotFound ||
+        rec.naddrs != 0)
+        TEST_FAILV(ret, 1, _SL("no-such-host.invalid: count=${uint} err=${int} naddrs=${int}"),
+                   stvar(uint32, atomicLoad(uint32, &rec.count, Acquire)), stvar(int32, rec.err),
+                   stvar(int32, rec.naddrs));
+
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// A cancelled lookup is never delivered, whether it was still in flight or already finished, and a
+// cancel that comes too late says so.
+static int test_nettest_resolve_cancel(void)
+{
+    int ret         = 0;
+    ResolveRec recA = { 0 }, recB = { 0 }, recC = { 0 };
+
+    NetQueue* q = makePolledQueue();
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    NetResolveId a = netqueueResolve(q, _SL("127.0.0.1"), 1, &resolveHandlers, &recA);   // finished
+    NetResolveId b = netqueueResolve(q, _SL("localhost"), 2, &resolveHandlers, &recB);   // in flight
+    NetResolveId c = netqueueResolve(q, _SL("127.0.0.1"), 3, &resolveHandlers, &recC);
+
+    if (!netqueueCancelResolve(q, a) || !netqueueCancelResolve(q, b))
+        TEST_FAILV(ret, 1, _SL("cancel of a pending lookup reported it too late"), stvNone);
+    if (netqueueCancelResolve(q, a))
+        TEST_FAILV(ret, 1, _SL("second cancel of the same lookup succeeded"), stvNone);
+
+    tickUntilResolved(q, &recC);
+    // Long enough for the in-flight lookup to come back and be dropped.
+    for (int i = 0; i < 20; i++)
+        netqueueTick(q, timeMS(25));
+
+    if (atomicLoad(uint32, &recA.count, Acquire) != 0 || atomicLoad(uint32, &recB.count, Acquire) != 0)
+        TEST_FAILV(ret, 1, _SL("a cancelled lookup was delivered"), stvNone);
+    if (atomicLoad(uint32, &recC.count, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("the uncancelled lookup was not delivered"), stvNone);
+    if (netqueueCancelResolve(q, c))
+        TEST_FAILV(ret, 1, _SL("cancel after delivery succeeded"), stvNone);
+
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// On a threaded queue the result arrives on a worker.
+static int test_nettest_resolve_threaded(void)
+{
+    int ret        = 0;
+    ResolveRec rec = { 0 };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.nthreads = 2;
+    NetQueue* q   = netqueueCreate(&conf);
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    netqueueResolve(q, _SL("localhost"), 80, &resolveHandlers, &rec);
+    int64 deadline = clockTimer() + timeS(10);
+    while (atomicLoad(uint32, &rec.count, Acquire) == 0 && clockTimer() < deadline)
+        osSleep(timeMS(10));
+
+    if (atomicLoad(uint32, &rec.count, Acquire) != 1 || rec.err != NERR_None)
+        TEST_FAILV(ret, 1, _SL("threaded lookup: count=${uint} err=${int}"),
+                   stvar(uint32, atomicLoad(uint32, &rec.count, Acquire)), stvar(int32, rec.err));
+    if (rec.thread == thrCurrentOSThreadID())
+        TEST_FAILV(ret, 1, _SL("threaded lookup delivered on the calling thread"), stvNone);
+
+    netqueueShutdown(q, timeS(5));
+    objRelease(&q);
+    return ret;
+}
+
+// A tick parked in its wait returns as soon as the lookup is delivered, not when the wait runs out.
+static int test_nettest_resolve_wake(void)
+{
+    int ret        = 0;
+    ResolveRec rec = { 0 };
+
+    NetQueue* q = makePolledQueue();
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    netqueueResolve(q, _SL("localhost"), 80, &resolveHandlers, &rec);
+    int64 start = clockTimer();
+    for (int i = 0; i < 3 && atomicLoad(uint32, &rec.count, Acquire) == 0; i++)
+        netqueueTick(q, timeS(5));
+    int64 took = clockTimer() - start;
+
+    if (atomicLoad(uint32, &rec.count, Acquire) != 1)
+        TEST_FAILV(ret, 1, _SL("lookup not delivered"), stvNone);
+    else if (took > timeS(3))
+        TEST_FAILV(ret, 1, _SL("tick waited ${int} ms for a lookup that was already done"),
+                   stvar(int64, timeToMsec(took)));
+
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+// The connect ordering helper: families interleaved, the first address's family leading unless a
+// preference says otherwise, and the *Only preferences filtering.
+static int test_nettest_addr_order(void)
+{
+    int ret = 0;
+
+    static const char* in[] = { "10.0.0.1", "10.0.0.2", "2001:db8::1", "10.0.0.3", "2001:db8::2" };
+    static const struct {
+        NetConnectPref pref;
+        const char* want;   // one letter per address: digit = IPv4 last octet, letter = IPv6 last
+    } cases[] = {
+        { NCP_Default, "1a2b3" },
+        { NCP_PreferV6, "a1b23" },
+        { NCP_V4Only, "123" },
+        { NCP_V6Only, "ab" },
+    };
+
+    for (int c = 0; c < 4; c++) {
+        sa_NetAddr addrs;
+        saInit(&addrs, NetAddr, 8);
+        for (int i = 0; i < 5; i++) {
+            NetAddr a;
+            netAddrFromStr(&a, (strref)in[i]);
+            saPush(&addrs, NetAddr, a);
+        }
+
+        netAddrOrderForConnect(&addrs, cases[c].pref);
+
+        char got[8] = { 0 };
+        for (int32 i = 0; i < saSize(addrs) && i < 7; i++) {
+            NetAddr* a = &addrs.a[i];
+            got[i]     = a->type == NA_IPv4 ? (char)('0' + a->ipv4[0]) : (char)('a' + a->ipv6[15] - 1);
+        }
+        if (strcmp(got, cases[c].want) != 0)
+            TEST_FAILV(ret, 1, _SL("pref ${int}: order '${string}', expected '${string}'"),
+                       stvar(int32, cases[c].pref), stvar(strref, (strref)got),
+                       stvar(strref, (strref)cases[c].want));
+        saDestroy(&addrs);
+    }
+    return ret;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Connect path: the client half, over real loopback sockets, on both backends. A
 // NetSocket connects out; netsocketConnect() resolves (or takes the literal), tries each address in
 // order with a fresh handle, and delivers NET_Connection through the flow. These drive the whole
@@ -5889,6 +6176,13 @@ int test_nettest_grp_select_dgram(void)
 #endif
 }
 
+int test_nettest_grp_resolve(void)
+{
+    TEST_CHAIN(test_nettest_addr_order, test_nettest_resolve_localhost, test_nettest_resolve_literal,
+               test_nettest_resolve_nxdomain, test_nettest_resolve_cancel,
+               test_nettest_resolve_threaded, test_nettest_resolve_wake);
+}
+
 int test_nettest_grp_select_connect(void)
 {
     TEST_CHAIN(test_nettest_select_connect, test_nettest_select_connect_dns,
@@ -6057,6 +6351,14 @@ testfunc nettest_funcs[] = {
     { "grp_select_dgram",           test_nettest_grp_select_dgram           },
     { "grp_select_loopback",        test_nettest_grp_select_loopback        },
     { "grp_select_connect",         test_nettest_grp_select_connect         },
+    { "addr_order",                 test_nettest_addr_order                 },
+    { "resolve_localhost",          test_nettest_resolve_localhost          },
+    { "resolve_literal",            test_nettest_resolve_literal            },
+    { "resolve_nxdomain",           test_nettest_resolve_nxdomain           },
+    { "resolve_cancel",             test_nettest_resolve_cancel             },
+    { "resolve_threaded",           test_nettest_resolve_threaded           },
+    { "resolve_wake",               test_nettest_resolve_wake               },
+    { "grp_resolve",                test_nettest_grp_resolve                },
     { "grp_timerwait",              test_nettest_grp_timerwait              },
     { "grp_shutdown_stall",         test_nettest_grp_shutdown_stall         },
 #if defined(_PLATFORM_WIN)

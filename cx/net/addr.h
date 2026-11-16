@@ -44,4 +44,20 @@ bool netAddrFromStr(_Out_ NetAddr* addr, _In_opt_ strref str);
 /// @endcode
 bool netAddrToStr(_Inout_ string* str, _In_ const NetAddr* addr);
 
+/// Put a list of resolved addresses in the order netsocketConnect() would try them
+///
+/// The families are interleaved (IPv4, IPv6, IPv4, ...) so that one family that does not work
+/// costs only a single attempt before the other gets a turn, each family keeping its own order.
+/// The first address's family leads unless `pref` names one; NCP_V4Only and NCP_V6Only remove the
+/// other family, which can leave the list empty.
+///
+/// @param addrs Addresses to reorder in place, usually NetEvent.resolved.addrs
+/// @param pref Family preference, as NetQueueConfig::connectPref
+///
+/// Example:
+/// @code
+///   netAddrOrderForConnect(ev->resolved.addrs, NCP_Default);
+/// @endcode
+void netAddrOrderForConnect(_Inout_ sa_NetAddr* addrs, NetConnectPref pref);
+
 /// @}

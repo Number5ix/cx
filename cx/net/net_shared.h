@@ -209,6 +209,12 @@ typedef enum {
 /// Zero is never a valid timer and means "no timer" everywhere it appears.
 typedef uint64 NetTimerId;
 
+/// @brief Handle to a pending name lookup, unique for the lifetime of its queue
+///
+/// Returned by netqueueResolve() and passed back to netqueueCancelResolve(). Zero is never a valid
+/// lookup and means one could not be started.
+typedef uint64 NetResolveId;
+
 /// Flags controlling how an armed timer behaves
 typedef enum {
     NTF_None = 0x00,
@@ -269,6 +275,9 @@ typedef enum {
 
     /// A packet's time to live ran out before it reached its destination
     NERR_TtlExpired         = 14,
+
+    /// The name service has no address for that host name
+    NERR_NameNotFound       = 15,
 } NetErrorCode;
 
 /// Network address types
@@ -620,7 +629,15 @@ typedef enum {
     /// Linux only; on Windows the port in the address may be 0, since the system does not always
     /// say which port was unreachable.
     /// @note Datagram sockets only.
-    NET_PeerUnreachable
+    NET_PeerUnreachable,
+
+    /// @brief A name lookup started with netqueueResolve() finished
+    ///
+    /// NetEvent.resolved carries the result: the addresses in the order the name service returned
+    /// them, each with the requested port, or an error. Delivered like any other event -- on a
+    /// worker, or inside netqueueTick() in polled mode -- never on the resolver's own thread.
+    /// NetEvent.socket and NetEvent.flow are NULL.
+    NET_Resolved
 } NetEventType;
 
 /// Network Event Structure
@@ -699,6 +716,22 @@ typedef struct NetEvent {
             NetAddr addr;       ///< The peer that could not be reached
             NetErrorCode err;   ///< Why: refused, host or network unreachable, or TTL expired
         } unreachable;
+
+        /// NET_Resolved
+        struct {
+            NetResolveId id;   ///< The lookup this is the result of, as netqueueResolve() returned
+            strref host;       ///< The host name that was looked up; valid until the handler returns
+            uint16 port;       ///< The port given to netqueueResolve(), set on every address
+
+            /// @brief The addresses found, empty on an error; valid until the handler returns
+            ///
+            /// Reorder with netAddrOrderForConnect() to try them the way netsocketConnect() does.
+            sa_NetAddr* addrs;
+
+            /// @brief NERR_None, NERR_NameNotFound if the name has no address, or another error
+            /// if the lookup itself failed
+            NetErrorCode err;
+        } resolved;
     };
 } NetEvent;
 
@@ -720,6 +753,7 @@ typedef struct NetHandlers {
     NetEventCB error;        ///< NET_Error: a queued send failed asynchronously
     NetEventCB timer;        ///< NET_Timer: a timer armed on the flow reached its deadline
     NetEventCB unreachable;  ///< NET_PeerUnreachable: a datagram's peer could not be reached
+    NetEventCB resolved;     ///< NET_Resolved: a netqueueResolve() lookup finished
 } NetHandlers;
 
 /// Called with a socket that is about to dial, before the connect starts

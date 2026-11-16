@@ -549,6 +549,7 @@ add_test(NAME "\"netfilter: Datagram\"" COMMAND test_runner nettest grp_filterdg
 add_test(NAME "\"netselect: Loopback And Send\"" COMMAND test_runner nettest grp_select_loopback)
 add_test(NAME "\"netselect: Datagram Errors\"" COMMAND test_runner nettest grp_select_dgram)
 add_test(NAME "\"netselect: Connect And Accept\"" COMMAND test_runner nettest grp_select_connect)
+add_test(NAME "\"net: Name Resolution\"" COMMAND test_runner nettest grp_resolve)
 add_test(NAME "\"nettimer: Wait Bounding\"" COMMAND test_runner nettest grp_timerwait)
 add_test(NAME "\"net: Shutdown With Stalled Thread\"" COMMAND test_runner nettest grp_shutdown_stall)
 if(CX_PLATFORM_IS_WINDOWS)

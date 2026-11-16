@@ -364,3 +364,64 @@ bool netAddrToStr(string* str, const NetAddr* addr)
 
     return false;
 }
+
+// RFC 8305 section 4 address-family interleave: alternate families so a dead or broken one costs
+// at most one attempt before the other gets a turn, rather than exhausting every address of one
+// family first. `lead` is which family goes first -- normally the first address the resolver
+// returned (matching the OS/RFC 6724 destination-selection preference it already applied), or a
+// forced choice from NetConnectPref. Each family keeps its own relative order; once one runs out,
+// the rest of the other is appended unchanged. A no-op if fewer than two addresses are present.
+static void interleaveAddrsByFamily(sa_NetAddr* addrs, NetAddrType lead)
+{
+    int32 n = saSize(*addrs);
+    if (n < 2)
+        return;
+
+    sa_NetAddr primary, secondary;
+    saInit(&primary, NetAddr, n);
+    saInit(&secondary, NetAddr, n);
+    for (int32 i = 0; i < n; i++) {
+        if (addrs->a[i].type == lead)
+            saPush(&primary, NetAddr, addrs->a[i]);
+        else
+            saPush(&secondary, NetAddr, addrs->a[i]);
+    }
+
+    saClear(addrs);
+    int32 pi = 0, si = 0;
+    while (pi < saSize(primary) || si < saSize(secondary)) {
+        if (pi < saSize(primary))
+            saPush(addrs, NetAddr, primary.a[pi++]);
+        if (si < saSize(secondary))
+            saPush(addrs, NetAddr, secondary.a[si++]);
+    }
+
+    saDestroy(&primary);
+    saDestroy(&secondary);
+}
+
+_Use_decl_annotations_
+void netAddrOrderForConnect(sa_NetAddr* addrs, NetConnectPref pref)
+{
+    if (pref == NCP_V4Only || pref == NCP_V6Only) {
+        NetAddrType keep = pref == NCP_V4Only ? NA_IPv4 : NA_IPv6;
+        int32 out        = 0;
+        for (int32 i = 0; i < saSize(*addrs); i++) {
+            if (addrs->a[i].type == keep)
+                addrs->a[out++] = addrs->a[i];
+        }
+        saSetSize(addrs, out);
+        return;
+    }
+
+    if (saSize(*addrs) == 0)
+        return;
+
+    NetAddrType lead = addrs->a[0].type;
+    if (pref == NCP_PreferV4)
+        lead = NA_IPv4;
+    else if (pref == NCP_PreferV6)
+        lead = NA_IPv6;
+
+    interleaveAddrsByFamily(addrs, lead);
+}

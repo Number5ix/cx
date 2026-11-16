@@ -99,13 +99,18 @@ abstract class NetQueue
     /// @brief Set when shutdown begins, so ingest stops producing and addSocket is refused
     atomic[uint32] shutdownReq;
 
-    // Events with no flow to be ordered behind (a datagram connect that failed), as a FIFO of
-    // NetCtlEvent (net_private.h) guarded by ctlLock. nctl counts them so dispatch can skip the
-    // lock when there are none.
+    // Events with no flow to be ordered behind (a datagram connect that failed, a finished name
+    // lookup), as a FIFO of NetCtlEvent (net_private.h) guarded by ctlLock. nctl counts them so
+    // dispatch can skip the lock when there are none.
     void *ctlHead;
     void *ctlTail;
     atomic[uint32] nctl;
     Mutex ctlLock;
+
+    // Name lookups from resolve() that have not been delivered yet, by id (NetCtlEvent*, not
+    // owned), guarded by ctlLock. resolveSerial is the source of ids; never reused, never 0.
+    hashtable[uint64,ptr] resolves;
+    uint64 resolveSerial;
 
     /// @brief Backend hook invoked when the send path leaves outbound data queued on a socket
     ///
@@ -378,6 +383,46 @@ abstract class NetQueue
     ///         no room
     [sal _Ret_maybenull_] unbound NetFlow *promoteFlow([inout] NetSocket *sock,
         [in] const NetAddr *peer);
+
+    /// Look up a host name without blocking
+    ///
+    /// The lookup runs on the shared resolver thread pool and its result arrives as a NET_Resolved
+    /// event -- on a worker, or inside netqueueTick() on the calling thread in polled mode. The
+    /// handlers given here are tried first, then the queue's own. A literal address completes
+    /// without a lookup, but is still delivered the same way.
+    ///
+    /// To connect, pass the host name to netsocketConnect() or netqueueConnect() instead, which
+    /// look it up for you; this is for code that needs the addresses themselves.
+    ///
+    /// @param host Host name or literal address (NULL/empty means loopback)
+    /// @param port Port to set on every address returned, host byte order
+    /// @param handlers Handlers for the NET_Resolved event, or NULL to use the queue's. Not copied
+    ///                 -- must stay valid until the event arrives or the lookup is cancelled
+    /// @param ctx Context passed to these handlers on NetEvent.ctx
+    /// @return An id for netqueueCancelResolve(), also carried on the event; 0 if the lookup could
+    ///         not be started (the queue is shutting down, or too many lookups are waiting)
+    ///
+    /// Example:
+    /// @code
+    ///   static void onResolved(NetEvent* ev)
+    ///   {
+    ///       if (ev->resolved.err == NERR_None)
+    ///           useAddress(&ev->resolved.addrs->a[0]);
+    ///   }
+    ///
+    ///   static const NetHandlers resolveHandlers = { .resolved = onResolved };
+    ///   NetResolveId id = netqueueResolve(q, _SL("example.com"), 443, &resolveHandlers, &state);
+    /// @endcode
+    [extern] unbound NetResolveId resolve(strref host, uint16 port,
+        [in] [opt] const NetHandlers *handlers, [in] [opt] void *ctx);
+
+    /// Stop a pending lookup's NET_Resolved event from being delivered
+    ///
+    /// The name service query itself cannot be interrupted; its result is discarded when it comes.
+    ///
+    /// @param id Lookup to cancel, as netqueueResolve() returned
+    /// @return true if the event will not be delivered, false if it already was (or id is unknown)
+    [extern] unbound bool cancelResolve(NetResolveId id);
 
     /// Datagrams dropped for lack of a receive buffer
     ///
