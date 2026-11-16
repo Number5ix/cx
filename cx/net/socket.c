@@ -415,7 +415,11 @@ bool NetSocket_setDontFragment(_In_ NetSocket* self, bool enable)
     if (self->type != NST_Datagram || self->handle == NET_INVALID_HANDLE)
         return false;
 
-    return netSockDontFragment(self->handle, enable);
+    if (!netSockDontFragment(self->handle, enable))
+        return false;
+
+    self->dontFragment = enable;
+    return true;
 }
 
 // Autogen begins -----

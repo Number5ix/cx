@@ -35,24 +35,44 @@ static void setNoDelay(int fd)
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 }
 
+// Everything a fresh handle of the socket's type and family needs before it is used, including the
+// per-datagram options the socket already asked for on an earlier handle.
+static void setupHandle(_In_ NetSocket* sock, int fd, int af)
+{
+    setNonBlocking(fd);
+
+    if (af == AF_INET6) {
+        int one = 1;
+        setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
+    }
+
+    if (sock->type == NST_Stream) {
+        setNoDelay(fd);
+        return;
+    }
+
+    if (sock->recvInfo)
+        netSockRecvInfo((NetSockHandle)fd, true);
+    if (sock->dontFragment)
+        netSockDontFragment((NetSockHandle)fd, true);
+}
+
 _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
 {
     NetSocketPosix* self;
     self = objInstCreate(NetSocketPosix);
 
     self->type = type;
-    self->fd   = socket(AF_INET, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, 0);
+    self->af   = AF_INET;
+    self->fd   = socket(self->af, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, 0);
 
     // A freshly created socket is NS_Init, not NS_Closed -- the bind/listen guards test against
     // NS_Closed, so storing NS_Closed here would reject every bind on a new socket.
     self->handle = (NetSockHandle)self->fd;
     atomicStore(uint32, &self->state, NS_Init, Relaxed);
 
-    if (self->fd >= 0) {
-        setNonBlocking(self->fd);
-        if (type == NST_Stream)
-            setNoDelay(self->fd);
-    }
+    if (self->fd >= 0)
+        setupHandle(NetSocket(self), self->fd, self->af);
 
     if (self->fd < 0 || !objInstInit(self)) {
         objRelease(&self);
@@ -70,7 +90,13 @@ NetSocketPosix_wrap(int fd, NetSocketType type, NetSocketState state)
     self->type   = type;
     self->fd     = fd;
     self->handle = (NetSockHandle)fd;
+    self->af     = AF_INET;
     atomicStore(uint32, &self->state, state, Relaxed);
+
+    struct sockaddr_storage sa;
+    socklen_t salen = sizeof(sa);
+    if (fd >= 0 && getsockname(fd, (struct sockaddr*)&sa, &salen) == 0)
+        self->af = sa.ss_family;
 
     // An accepted fd inherits the listener's blocking mode; the backend drains until WouldBlock,
     // so it must be non-blocking regardless of how it arrived.
@@ -88,6 +114,16 @@ bool NetSocketPosix_bind(_In_ NetSocketPosix* self, const NetAddr* addr)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;
+
+    // A handle's family is fixed when it is made, so binding to the other family takes a new one.
+    // That is only possible while nothing else knows the old handle: before the socket is bound or
+    // has joined a queue.
+    int af = addr->type == NA_IPv6 ? AF_INET6 : AF_INET;
+    if (af != self->af) {
+        if (self->local.type != NA_Unknown || self->queue ||
+            !netPlatformResetSocket(NetSocket(self), addr->type, false))
+            return false;
+    }
 
     int one = 1;
     setsockopt(self->fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
@@ -198,13 +234,12 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
 
     // Each connect attempt needs a fresh handle: a socket with a failed or pending connect cannot
     // be reliably reconnected, and the resolved list can mix families an existing handle cannot
-    // serve.
-    int ns = socket(af, SOCK_STREAM, 0);
+    // serve. A socket bound to the other family than it was made with needs one too.
+    int ns = socket(af, sock->type == NST_Stream ? SOCK_STREAM : SOCK_DGRAM, 0);
     if (ns < 0)
         return false;
 
-    setNonBlocking(ns);
-    setNoDelay(ns);   // always a stream socket; connect() is the only caller
+    setupHandle(sock, ns, af);
 
     if (bindAny) {
         struct sockaddr_storage any;
@@ -232,6 +267,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
     // fails at once instead of waiting.
     int old      = self->fd;
     self->fd     = ns;
+    self->af     = af;
     self->handle = (NetSockHandle)ns;
     if (old >= 0)
         close(old);

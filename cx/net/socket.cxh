@@ -129,6 +129,9 @@ abstract class NetSocket
     // readiness backends.
     atomic[uint32] recvPosted;
 
+    // Whether setDontFragment() turned the bit on, so a replacement handle gets it too.
+    bool dontFragment;
+
     // An unreachable report (NetErrorCode) a datagram send absorbed while holding sendLock, for
     // whoever drops the lock to deliver. See dgramSendTo() in dataplane.c.
     atomic[uint32] sendUnreach;

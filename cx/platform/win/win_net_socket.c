@@ -19,27 +19,49 @@ static void setNoDelay(SOCKET sock)
     setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (const char*)&one, sizeof(one));
 }
 
+// Everything a fresh handle of the socket's type and family needs before it is used, including the
+// per-datagram options the socket already asked for on an earlier handle.
+static void setupHandle(_In_ NetSocket* sock, SOCKET s, int af)
+{
+    // Every backend drives these non-blocking: the select loop must not stall in recv() on a
+    // spurious readiness, and completion backends post overlapped operations.
+    u_long nonblocking = 1;
+    ioctlsocket(s, FIONBIO, &nonblocking);
+
+    // One family per handle, which is the Windows default anyway; set it so it does not depend on
+    // that.
+    if (af == AF_INET6) {
+        DWORD one = 1;
+        setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&one, sizeof(one));
+    }
+
+    if (sock->type == NST_Stream) {
+        setNoDelay(s);
+        return;
+    }
+
+    if (sock->recvInfo)
+        netSockRecvInfo((NetSockHandle)s, true);
+    if (sock->dontFragment)
+        netSockDontFragment((NetSockHandle)s, true);
+}
+
 _objfactory_check NetSocketWin* NetSocketWin_create(NetSocketType type)
 {
     NetSocketWin* self;
     self = objInstCreate(NetSocketWin);
 
     self->type = type;
-    self->sock = socket(AF_INET, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, IPPROTO_IP);
+    self->af   = AF_INET;
+    self->sock = socket(self->af, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, IPPROTO_IP);
 
     // A freshly created socket is NS_Init, not NS_Closed. The bind/listen guards test against
     // NS_Closed, so storing NS_Closed here inverted them and rejected every bind on a new socket.
     self->handle = (NetSockHandle)self->sock;
     atomicStore(uint32, &self->state, NS_Init, Relaxed);
 
-    // Every backend drives these non-blocking: the select loop must not stall in recv() on a
-    // spurious readiness, and completion backends post overlapped operations.
-    if (self->sock != INVALID_SOCKET) {
-        u_long nonblocking = 1;
-        ioctlsocket(self->sock, FIONBIO, &nonblocking);
-        if (type == NST_Stream)
-            setNoDelay(self->sock);
-    }
+    if (self->sock != INVALID_SOCKET)
+        setupHandle(NetSocket(self), self->sock, self->af);
 
     if (self->sock == INVALID_SOCKET || !objInstInit(self)) {
         objRelease(&self);
@@ -57,7 +79,13 @@ NetSocketWin_wrap(SOCKET sock, NetSocketType type, NetSocketState state)
     self->type   = type;
     self->sock   = sock;
     self->handle = (NetSockHandle)sock;
+    self->af     = AF_INET;
     atomicStore(uint32, &self->state, state, Relaxed);
+
+    struct sockaddr_storage sa;
+    int salen = sizeof(sa);
+    if (sock != INVALID_SOCKET && getsockname(sock, (struct sockaddr*)&sa, &salen) == 0)
+        self->af = sa.ss_family;
 
     // An accepted socket inherits the listener's blocking mode; the backend drains until
     // WouldBlock, so it must be non-blocking regardless of how it arrived.
@@ -76,6 +104,16 @@ bool NetSocketWin_bind(_In_ NetSocketWin* self, const NetAddr* addr)
 {
     if (atomicLoad(uint32, &self->state, Relaxed) == NS_Closed)
         return false;
+
+    // A handle's family is fixed when it is made, so binding to the other family takes a new one.
+    // That is only possible while nothing else knows the old handle: before the socket is bound or
+    // has joined a queue.
+    int af = addr->type == NA_IPv6 ? AF_INET6 : AF_INET;
+    if (af != self->af) {
+        if (self->local.type != NA_Unknown || self->queue ||
+            !netPlatformResetSocket(NetSocket(self), addr->type, false))
+            return false;
+    }
 
     BOOL one = 1;
     setsockopt(self->sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&one, sizeof(one));
@@ -195,13 +233,13 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
 
     // Each connect attempt needs a fresh handle: a socket with a failed or pending connect cannot be
     // reliably reconnected, and the resolved list can mix families an existing handle cannot serve.
-    SOCKET ns = socket(af, SOCK_STREAM, IPPROTO_TCP);
+    // A socket bound to the other family than it was made with needs one too.
+    bool stream = sock->type == NST_Stream;
+    SOCKET ns   = socket(af, stream ? SOCK_STREAM : SOCK_DGRAM, stream ? IPPROTO_TCP : IPPROTO_UDP);
     if (ns == INVALID_SOCKET)
         return false;
 
-    u_long nonblocking = 1;
-    ioctlsocket(ns, FIONBIO, &nonblocking);
-    setNoDelay(ns);   // always a stream socket; connect() is the only caller
+    setupHandle(sock, ns, af);
 
     // ConnectEx requires the socket to already be bound; a plain connect() does not.
     if (bindAny) {
@@ -230,6 +268,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
     // fails at once instead of waiting.
     SOCKET old   = self->sock;
     self->sock   = ns;
+    self->af     = af;
     self->handle = (NetSockHandle)ns;
     if (old != INVALID_SOCKET)
         closesocket(old);

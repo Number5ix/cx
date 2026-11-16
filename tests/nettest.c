@@ -1998,6 +1998,9 @@ static int dgramSurvivesUnreachableBody(MakeDgramQueueFn make)
     return ret;
 }
 
+// Unconnected sockets only hear about unreachable peers on Windows and Linux.
+#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+
 // Wine reports no ICMP errors on datagram sockets at all.
 static bool noIcmpReports(void)
 {
@@ -2082,6 +2085,89 @@ static int dgramUnreachableBody(MakeDgramQueueFn make, bool withFlow)
 
     objRelease(&flow);
     closesocket(snd);
+    netsocketClose(rsock);
+    objRelease(&rsock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
+#endif
+
+// A datagram socket bound to ::1 receives from and sends to an IPv6 peer. Skipped where the machine
+// has no IPv6 loopback.
+static int dgramIPv6Body(MakeDgramQueueFn make)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onDgramRecv };
+
+    SOCKET peer = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+    if (peer == INVALID_SOCKET)
+        return 0;
+    struct sockaddr_in6 pa;
+    memset(&pa, 0, sizeof(pa));
+    pa.sin6_family = AF_INET6;
+    pa.sin6_addr   = in6addr_loopback;
+    if (bind(peer, (struct sockaddr*)&pa, sizeof(pa)) != 0) {
+        closesocket(peer);
+        return 0;
+    }
+    int palen = sizeof(pa);
+    getsockname(peer, (struct sockaddr*)&pa, &palen);
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    NetQueue* q = make(&conf);
+    if (!q) {
+        closesocket(peer);
+        return 0;   // backend unavailable here (IOCP under Wine): skip
+    }
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    NetSocket* rsock = netqueueSocket(q, NST_Datagram);
+    NetAddr ba;
+    netAddrFromStr(&ba, _SL("::1"));
+    if (!rsock || !netsocketBind(rsock, &ba)) {
+        objRelease(&rsock);
+        objRelease(&q);
+        closesocket(peer);
+        TEST_FAIL(1, _SL("could not bind a datagram socket to ::1"), stvNone);
+    }
+    netqueueAddSocket(q, rsock);
+
+    struct sockaddr_in6 ra;
+    int ralen = sizeof(ra);
+    getsockname((SOCKET)rsock->handle, (struct sockaddr*)&ra, &ralen);
+    if (ra.sin6_family != AF_INET6)
+        TEST_FAILV(ret, 1, _SL("bound socket family ${int}, expected AF_INET6"), stvar(int32, ra.sin6_family));
+
+    sendto(peer, "6", 1, 0, (struct sockaddr*)&ra, sizeof(ra));
+    tickUntil(q, &rec, 1);
+    if (rec.recvCount != 1 || rec.seq[0] != '6')
+        TEST_FAILV(ret, 1, _SL("datagram from the IPv6 peer not received"), stvNone);
+
+    NetAddr dst = ba;
+    dst.port    = ntohs(pa.sin6_port);
+    if (!netsocketSend(rsock, (const uint8*)"r", 1, &dst, 0))
+        TEST_FAILV(ret, 1, _SL("send to the IPv6 peer failed"), stvNone);
+
+    char got[8];
+    struct sockaddr_in6 from;
+    int fromlen = sizeof(from);
+    u_long nb   = 1;
+    ioctlsocket(peer, FIONBIO, &nb);
+    int n = -1;
+    for (int i = 0; i < 50 && n < 0; i++) {
+        n = recvfrom(peer, got, sizeof(got), 0, (struct sockaddr*)&from, &fromlen);
+        if (n < 0)
+            netqueueTick(q, timeMS(20));
+    }
+    if (n != 1 || got[0] != 'r')
+        TEST_FAILV(ret, 1, _SL("IPv6 peer did not receive the reply (n=${int})"), stvar(int32, n));
+
+    closesocket(peer);
     netsocketClose(rsock);
     objRelease(&rsock);
     netqueueShutdown(q, 0);
@@ -2822,6 +2908,11 @@ static int test_nettest_select_udp_oversize(void)
 static int test_nettest_select_udp_unreachable_live(void)
 {
     return dgramSurvivesUnreachableBody(makeSelectDgramQueue);
+}
+
+static int test_nettest_select_udp6(void)
+{
+    return dgramIPv6Body(makeSelectDgramQueue);
 }
 
 // Unconnected sockets hear about unreachable peers on Windows and Linux only. Wine reports nothing.
@@ -3733,6 +3824,11 @@ static int test_nettest_iocp_udp_unreachable_live(void)
     return dgramSurvivesUnreachableBody(makeIocpDgramQueue);
 }
 
+static int test_nettest_iocp_udp6(void)
+{
+    return dgramIPv6Body(makeIocpDgramQueue);
+}
+
 static int test_nettest_iocp_udp_unreachable(void)
 {
     if (noIcmpReports())
@@ -4434,6 +4530,11 @@ static int test_nettest_epoll_udp_unreachable_live(void)
     return dgramSurvivesUnreachableBody(makeEpollDgramQueue);
 }
 
+static int test_nettest_epoll_udp6(void)
+{
+    return dgramIPv6Body(makeEpollDgramQueue);
+}
+
 static int test_nettest_epoll_udp_unreachable(void)
 {
     return dgramUnreachableBody(makeEpollDgramQueue, true);
@@ -4803,6 +4904,11 @@ static int test_nettest_kqueue_udp_oversize(void)
 static int test_nettest_kqueue_udp_unreachable_live(void)
 {
     return dgramSurvivesUnreachableBody(makeKqueueDgramQueue);
+}
+
+static int test_nettest_kqueue_udp6(void)
+{
+    return dgramIPv6Body(makeKqueueDgramQueue);
 }
 
 // A connected loopback TCP pair over kqueue's polled tick(), mirroring test_nettest_select_stream.
@@ -5484,10 +5590,10 @@ int test_nettest_grp_select_loopback(void)
 int test_nettest_grp_select_dgram(void)
 {
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
-    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live,
+    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live, test_nettest_select_udp6,
                test_nettest_select_udp_unreachable, test_nettest_select_udp_unreachable_noflow);
 #else
-    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live);
+    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live, test_nettest_select_udp6);
 #endif
 }
 
@@ -5520,7 +5626,7 @@ int test_nettest_grp_iocp_loopback(void)
 
 int test_nettest_grp_iocp_dgram(void)
 {
-    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live,
+    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live, test_nettest_iocp_udp6,
                test_nettest_iocp_udp_unreachable, test_nettest_iocp_udp_unreachable_noflow);
 }
 
@@ -5543,7 +5649,7 @@ int test_nettest_grp_epoll_loopback(void)
 
 int test_nettest_grp_epoll_dgram(void)
 {
-    TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live,
+    TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live, test_nettest_epoll_udp6,
                test_nettest_epoll_udp_unreachable, test_nettest_epoll_udp_unreachable_noflow);
 }
 
@@ -5566,7 +5672,7 @@ int test_nettest_grp_kqueue_loopback(void)
 
 int test_nettest_grp_kqueue_dgram(void)
 {
-    TEST_CHAIN(test_nettest_kqueue_udp_oversize, test_nettest_kqueue_udp_unreachable_live);
+    TEST_CHAIN(test_nettest_kqueue_udp_oversize, test_nettest_kqueue_udp_unreachable_live, test_nettest_kqueue_udp6);
 }
 
 int test_nettest_grp_kqueue_connect(void)
@@ -5638,6 +5744,7 @@ testfunc nettest_funcs[] = {
     { "grp_filterdgram",            test_nettest_grp_filterdgram            },
     { "select_udp_oversize",        test_nettest_select_udp_oversize        },
     { "select_udp_unreachable_live", test_nettest_select_udp_unreachable_live },
+    { "select_udp6",                test_nettest_select_udp6                },
 #if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
     { "select_udp_unreachable",     test_nettest_select_udp_unreachable     },
     { "select_udp_unreachable_noflow", test_nettest_select_udp_unreachable_noflow },
@@ -5663,6 +5770,7 @@ testfunc nettest_funcs[] = {
     { "iocp_accept_auto",           test_nettest_iocp_accept_auto           },
     { "iocp_udp_oversize",          test_nettest_iocp_udp_oversize          },
     { "iocp_udp_unreachable_live",  test_nettest_iocp_udp_unreachable_live  },
+    { "iocp_udp6",                  test_nettest_iocp_udp6                  },
     { "iocp_udp_unreachable",       test_nettest_iocp_udp_unreachable       },
     { "iocp_udp_unreachable_noflow", test_nettest_iocp_udp_unreachable_noflow },
     { "grp_iocp_dgram",             test_nettest_grp_iocp_dgram             },
@@ -5683,6 +5791,7 @@ testfunc nettest_funcs[] = {
     { "epoll_accept_auto",          test_nettest_epoll_accept_auto          },
     { "epoll_udp_oversize",         test_nettest_epoll_udp_oversize         },
     { "epoll_udp_unreachable_live", test_nettest_epoll_udp_unreachable_live },
+    { "epoll_udp6",                 test_nettest_epoll_udp6                 },
     { "epoll_udp_unreachable",      test_nettest_epoll_udp_unreachable      },
     { "epoll_udp_unreachable_noflow", test_nettest_epoll_udp_unreachable_noflow },
     { "grp_epoll_dgram",            test_nettest_grp_epoll_dgram            },
@@ -5703,6 +5812,7 @@ testfunc nettest_funcs[] = {
     { "kqueue_accept_auto",         test_nettest_kqueue_accept_auto         },
     { "kqueue_udp_oversize",        test_nettest_kqueue_udp_oversize        },
     { "kqueue_udp_unreachable_live", test_nettest_kqueue_udp_unreachable_live },
+    { "kqueue_udp6",                test_nettest_kqueue_udp6                },
     { "grp_kqueue_dgram",           test_nettest_grp_kqueue_dgram           },
     { "grp_kqueue_loopback",        test_nettest_grp_kqueue_loopback        },
     { "grp_kqueue_connect",         test_nettest_grp_kqueue_connect         },
