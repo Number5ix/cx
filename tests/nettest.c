@@ -4321,6 +4321,64 @@ static NetQueue* makeIocpDgramQueue(NetQueueConfig* conf)
     return netPlatformCreateIOCP(conf);
 }
 
+// A datagram socket that joins the queue unbound has no receives posted -- Windows fails one on an
+// unbound socket -- and gets its full set once it is bound, or once it connects.
+static int test_nettest_iocp_udp_unbound(void)
+{
+    int ret      = 0;
+    Recorder rec = { 0 };
+
+    static const NetHandlers handlers = { .recv = onDgramRecv, .connection = onDgramConnect };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    NetQueue* q = makeIocpDgramQueue(&conf);
+    if (!q)
+        return 0;   // IOCP unavailable (Wine): skip
+    netqueueSetHandlers(q, &handlers, &rec);
+
+    NetSocket* s = netqueueSocket(q, NST_Datagram);
+    netqueueAddSocket(q, s);
+    if (atomicLoad(uint32, &s->recvPosted, Acquire) != 0)
+        TEST_FAILV(ret, 1, _SL("${uint} receives posted on an unbound socket"),
+                   stvar(uint32, atomicLoad(uint32, &s->recvPosted, Acquire)));
+
+    NetAddr ba = loopbackAddr(0);
+    if (!netsocketBind(s, &ba))
+        TEST_FAILV(ret, 1, _SL("bind after joining the queue failed"), stvNone);
+    if (atomicLoad(uint32, &s->recvPosted, Acquire) == 0)
+        TEST_FAILV(ret, 1, _SL("no receives posted once the socket was bound"), stvNone);
+
+    struct sockaddr_in sa;
+    int salen = sizeof(sa);
+    getsockname((SOCKET)s->handle, (struct sockaddr*)&sa, &salen);
+    uint16 sport = 0;
+    SOCKET snd   = rawUdpSocket(&sport);
+    rawUdpSendTo(snd, "u", 1, ntohs(sa.sin_port));
+    tickUntil(q, &rec, 1);
+    if (rec.recvCount != 1)
+        TEST_FAILV(ret, 1, _SL("socket bound after joining the queue received nothing"), stvNone);
+
+    NetSocket* c = netqueueSocket(q, NST_Datagram);
+    netqueueAddSocket(q, c);
+    if (!netsocketConnect(c, _SL("127.0.0.1"), sport))
+        TEST_FAILV(ret, 1, _SL("connect of an unbound socket failed to start"), stvNone);
+    tickUntilConn(q, &rec, 30);
+    if (rec.connCount != 1 || rec.connErr != NERR_None)
+        TEST_FAILV(ret, 1, _SL("connect of an unbound socket: err=${int}"), stvar(int32, rec.connErr));
+    if (atomicLoad(uint32, &c->recvPosted, Acquire) == 0)
+        TEST_FAILV(ret, 1, _SL("no receives posted once the socket connected"), stvNone);
+
+    closesocket(snd);
+    netsocketClose(c);
+    objRelease(&c);
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
 static int test_nettest_iocp_udp_oversize(void)
 {
     return dgramOversizeBody(makeIocpDgramQueue);
@@ -6212,8 +6270,9 @@ int test_nettest_grp_iocp_loopback(void)
 
 int test_nettest_grp_iocp_dgram(void)
 {
-    TEST_CHAIN(test_nettest_iocp_udp_oversize, test_nettest_iocp_udp_unreachable_live,
-               test_nettest_iocp_udp6, test_nettest_iocp_udp_connect,
+    TEST_CHAIN(test_nettest_iocp_udp_unbound, test_nettest_iocp_udp_oversize,
+               test_nettest_iocp_udp_unreachable_live, test_nettest_iocp_udp6,
+               test_nettest_iocp_udp_connect,
                test_nettest_iocp_udp_connect_dns, test_nettest_iocp_udp_connect_unreachable,
                test_nettest_iocp_udp_connect_fail, test_nettest_iocp_udp_unreachable,
                test_nettest_iocp_udp_unreachable_noflow);
@@ -6375,6 +6434,7 @@ testfunc nettest_funcs[] = {
     { "iocp_connect_timeout",       test_nettest_iocp_connect_timeout       },
     { "iocp_accept",                test_nettest_iocp_accept                },
     { "iocp_accept_auto",           test_nettest_iocp_accept_auto           },
+    { "iocp_udp_unbound",           test_nettest_iocp_udp_unbound           },
     { "iocp_udp_oversize",          test_nettest_iocp_udp_oversize          },
     { "iocp_udp_unreachable_live",  test_nettest_iocp_udp_unreachable_live  },
     { "iocp_udp6",                  test_nettest_iocp_udp6                  },

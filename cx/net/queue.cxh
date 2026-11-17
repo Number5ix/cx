@@ -177,7 +177,8 @@ abstract class NetQueue
     // its NET_Connection event has been queued. The backend starts servicing the socket for
     // receive here -- select rebuilds its watch set to read-watch it, IOCP posts the first
     // WSARecv -- the same thing addSocket() does for a socket that was already connected when it
-    // joined the queue.
+    // joined the queue. Also called when a datagram socket is bound after joining the queue, so a
+    // backend that cannot receive on an unbound socket can start then.
     //
     // @param sock Socket that just connected
     [abstract] void connectArm(NetSocket* sock);

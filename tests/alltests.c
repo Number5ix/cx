@@ -540,6 +540,7 @@ static const testspec tests[] = {
     { "netiocp: Stream Send", "nettest", "iocp_stream_send" },
     { "netiocp: Datagram Send", "nettest", "iocp_udp_send" },
     { "netiocp: Stream Backpressure", "nettest", "iocp_stream_backpressure" },
+    { "netiocp: Unbound Datagram Socket", "nettest", "iocp_udp_unbound" },
     { "netiocp: Oversized Datagram", "nettest", "iocp_udp_oversize" },
     { "netiocp: Receive After ICMP Errors", "nettest", "iocp_udp_unreachable_live" },
     { "netiocp: IPv6 Datagram Loopback", "nettest", "iocp_udp6" },

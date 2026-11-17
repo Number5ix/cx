@@ -128,6 +128,15 @@ bool NetSocketWin_bind(_In_ NetSocketWin* self, const NetAddr* addr)
                 netAddrFromSockaddr(&self->local, (struct sockaddr*)&got);
             else
                 self->local = *addr;
+
+            // A datagram socket that joined its queue unbound has had no receives posted yet.
+            if (self->type == NST_Datagram) {
+                NetQueue* q = objAcquireFromWeak(NetQueue, self->queue);
+                if (q) {
+                    netqueueConnectArm(q, NetSocket(self));
+                    objRelease(&q);
+                }
+            }
             return true;
         }
     }

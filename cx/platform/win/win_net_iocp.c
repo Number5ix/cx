@@ -1087,7 +1087,10 @@ void NetQueueWinIOCP_connectArm(_In_ NetQueueWinIOCP* self, NetSocket* sock)
     if (sock->handle == NET_INVALID_HANDLE)
         return;
 
-    postRecv(self, sock);
+    if (sock->type == NST_Datagram)
+        topUpRecvFrom(self, sock);
+    else
+        postRecv(self, sock);
 }
 
 // A socket just started listening (listen() called after it joined the queue). Post the initial
@@ -1134,7 +1137,10 @@ bool NetQueueWinIOCP_addSocket(_In_ NetQueueWinIOCP* self, NetSocket* socket)
         return true;
 
     if (socket->type == NST_Datagram) {
-        topUpRecvFrom(self, socket);
+        // A receive posted on an unbound socket fails outright, so one that joins unbound waits for
+        // its bind or connect to arm it.
+        if (socket->local.type != NA_Unknown || socket->remote.type != NA_Unknown)
+            topUpRecvFrom(self, socket);
     } else {
         uint32 st = atomicLoad(uint32, &socket->state, Relaxed);
         if (st == NS_Connected) {
