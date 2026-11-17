@@ -554,7 +554,8 @@ static void postSendLocked(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* soc
             cancelIfClosed(sock);
         }
     } else {   // datagram
-        NetMessage* m = (NetMessage*)prqPop(&sock->bufs.dgram.send);
+        NetMessage* m =
+            _netDgramSendQueueLive(sock) ? (NetMessage*)prqPop(&sock->bufs.dgram.send) : NULL;
         if (!m)
             return;
         size_t len = m->buf ? m->buf->len : 0;

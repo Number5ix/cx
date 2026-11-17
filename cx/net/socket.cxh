@@ -200,7 +200,7 @@ abstract class NetSocket
     ///
     /// Filled in by the resolver, then reordered by family per connectPref. The connect state
     /// machine tries each address in turn, falling through to the next entry whenever an attempt
-    /// fails or times out.
+    /// fails or times out. Not allocated until the socket's first connect.
     [noinit] sarray[NetAddr] connQueue;
 
     int32 connectIdx;        ///< Index of the next connQueue address to try

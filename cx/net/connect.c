@@ -447,6 +447,10 @@ bool NetSocket_connect(_In_ NetSocket* self, _In_ strref host, uint16 port)
 
     objAcquire(self);   // the connect operation holds a self-reference until it reaches a terminal state
 
+    // Only a socket that connects needs the fallback list; made here rather than with every socket.
+    if (self->type == NST_Stream && !saValid(self->connQueue))
+        saInit(&self->connQueue, NetAddr, 4);
+
     // A literal address needs no DNS. Resolving it inline also means a program that only ever
     // connects to addresses never spins up the resolver queue.
     NetAddr lit;

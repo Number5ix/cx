@@ -1953,6 +1953,82 @@ static int dgramOversizeBody(MakeDgramQueueFn make)
     return ret;
 }
 
+#if defined(_PLATFORM_LINUX)
+// Sends the OS refuses wait in the socket's own queue, made the first time that happens, and still
+// arrive in order once the socket drains. A UDP send on loopback is never refused, so the socket's
+// handle is swapped for one end of a Unix-domain datagram pair with a tiny send buffer, which is,
+// and a connected peer makes the sends go out without an address.
+static int dgramQueuedSendBody(MakeDgramQueueFn make)
+{
+    enum { K = 64, LEN = 1000 };
+    int ret = 0;
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.sendHigh = 1024 * 1024;
+    NetQueue* q   = make(&conf);
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    int pair[2];
+    if (socketpair(AF_UNIX, SOCK_DGRAM, 0, pair) != 0) {
+        objRelease(&q);
+        TEST_FAIL(1, _SL("socketpair() failed"), stvNone);
+    }
+    int snd = 4096;
+    setsockopt(pair[0], SOL_SOCKET, SO_SNDBUF, &snd, sizeof(snd));
+    u_long nb = 1;
+    ioctlsocket(pair[0], FIONBIO, &nb);
+    ioctlsocket(pair[1], FIONBIO, &nb);
+
+    NetSocket* s = netqueueSocket(q, NST_Datagram);
+    dup2(pair[0], (int)s->handle);
+    close(pair[0]);
+    s->remote = loopbackAddr(9);
+    netqueueAddSocket(q, s);
+
+    if (_netDgramSendQueueLive(s))
+        TEST_FAILV(ret, 1, _SL("send queue made before anything was sent"), stvNone);
+
+    uint8 pkt[LEN];
+    memset(pkt, 0, sizeof(pkt));
+    int accepted = 0;
+    for (int i = 0; i < K; i++) {
+        pkt[0] = (uint8)i;
+        if (netsocketSend(s, pkt, LEN, NULL, 0))
+            accepted++;
+    }
+    if (!_netDgramSendQueueLive(s) || s->sendQueued == 0)
+        TEST_FAILV(ret, 1, _SL("no send was refused by the OS (queued ${uint} bytes)"),
+                   stvar(uint64, s->sendQueued));
+
+    int got = 0, next = 0;
+    int64 deadline = clockTimer() + timeS(3);
+    while (got < accepted && clockTimer() < deadline) {
+        netqueueTick(q, timeMS(5));
+        uint8 in[LEN];
+        ssize_t n;
+        while ((n = recv(pair[1], in, LEN, 0)) > 0) {
+            if (in[0] != (uint8)next)
+                TEST_FAILV(ret, 1, _SL("datagram ${int} arrived where ${int} was expected"),
+                           stvar(int32, in[0]), stvar(int32, next));
+            next = in[0] + 1;
+            got++;
+        }
+    }
+    if (accepted != K || got != accepted)
+        TEST_FAILV(ret, 1, _SL("${int} sends accepted, ${int} received, of ${int}"),
+                   stvar(int32, accepted), stvar(int32, got), stvar(int32, K));
+
+    close(pair[1]);
+    netsocketClose(s);
+    objRelease(&s);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+#endif
+
 // Each datagram sent to a closed port draws an ICMP port unreachable, which most platforms report
 // as an error on a later receive. However many arrive, the socket must keep receiving: more of them
 // than a polled IOCP queue keeps receives outstanding (4) once left that backend deaf for good.
@@ -3453,6 +3529,13 @@ static int test_nettest_select_udp6(void)
 {
     return dgramIPv6Body(makeSelectDgramQueue);
 }
+
+#if defined(_PLATFORM_LINUX)
+static int test_nettest_select_udp_queued(void)
+{
+    return dgramQueuedSendBody(makeSelectDgramQueue);
+}
+#endif
 
 static int test_nettest_select_udp_connect(void)
 {
@@ -5176,6 +5259,11 @@ static int test_nettest_epoll_udp6(void)
     return dgramIPv6Body(makeEpollDgramQueue);
 }
 
+static int test_nettest_epoll_udp_queued(void)
+{
+    return dgramQueuedSendBody(makeEpollDgramQueue);
+}
+
 static int test_nettest_epoll_udp_connect(void)
 {
     return dgramConnectBody(makeEpollDgramQueue, _SL("127.0.0.1"));
@@ -6274,7 +6362,13 @@ int test_nettest_grp_select_loopback(void)
 
 int test_nettest_grp_select_dgram(void)
 {
-#if defined(_PLATFORM_WIN) || defined(_PLATFORM_LINUX)
+#if defined(_PLATFORM_LINUX)
+    TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live,
+               test_nettest_select_udp6, test_nettest_select_udp_connect,
+               test_nettest_select_udp_connect_dns, test_nettest_select_udp_connect_unreachable,
+               test_nettest_select_udp_connect_fail, test_nettest_select_udp_queued,
+               test_nettest_select_udp_unreachable, test_nettest_select_udp_unreachable_noflow);
+#elif defined(_PLATFORM_WIN)
     TEST_CHAIN(test_nettest_select_udp_oversize, test_nettest_select_udp_unreachable_live,
                test_nettest_select_udp6, test_nettest_select_udp_connect,
                test_nettest_select_udp_connect_dns, test_nettest_select_udp_connect_unreachable,
@@ -6326,10 +6420,9 @@ int test_nettest_grp_iocp_dgram(void)
 {
     TEST_CHAIN(test_nettest_iocp_udp_unbound, test_nettest_iocp_udp_oversize,
                test_nettest_iocp_udp_unreachable_live, test_nettest_iocp_udp6,
-               test_nettest_iocp_udp_connect,
-               test_nettest_iocp_udp_connect_dns, test_nettest_iocp_udp_connect_unreachable,
-               test_nettest_iocp_udp_connect_fail, test_nettest_iocp_udp_unreachable,
-               test_nettest_iocp_udp_unreachable_noflow);
+               test_nettest_iocp_udp_connect, test_nettest_iocp_udp_connect_dns,
+               test_nettest_iocp_udp_connect_unreachable, test_nettest_iocp_udp_connect_fail,
+               test_nettest_iocp_udp_unreachable, test_nettest_iocp_udp_unreachable_noflow);
 }
 
 int test_nettest_grp_iocp_connect(void)
@@ -6354,8 +6447,8 @@ int test_nettest_grp_epoll_dgram(void)
     TEST_CHAIN(test_nettest_epoll_udp_oversize, test_nettest_epoll_udp_unreachable_live,
                test_nettest_epoll_udp6, test_nettest_epoll_udp_connect,
                test_nettest_epoll_udp_connect_dns, test_nettest_epoll_udp_connect_unreachable,
-               test_nettest_epoll_udp_connect_fail, test_nettest_epoll_udp_unreachable,
-               test_nettest_epoll_udp_unreachable_noflow);
+               test_nettest_epoll_udp_connect_fail, test_nettest_epoll_udp_queued,
+               test_nettest_epoll_udp_unreachable, test_nettest_epoll_udp_unreachable_noflow);
 }
 
 int test_nettest_grp_epoll_connect(void)
@@ -6454,6 +6547,9 @@ testfunc nettest_funcs[] = {
     { "select_udp_oversize",        test_nettest_select_udp_oversize        },
     { "select_udp_unreachable_live", test_nettest_select_udp_unreachable_live },
     { "select_udp6",                test_nettest_select_udp6                },
+#if defined(_PLATFORM_LINUX)
+    { "select_udp_queued",          test_nettest_select_udp_queued          },
+#endif
     { "select_udp_connect",         test_nettest_select_udp_connect         },
     { "select_udp_connect_dns",     test_nettest_select_udp_connect_dns     },
     { "select_udp_connect_unreachable", test_nettest_select_udp_connect_unreachable },
@@ -6518,6 +6614,7 @@ testfunc nettest_funcs[] = {
     { "epoll_udp_oversize",         test_nettest_epoll_udp_oversize         },
     { "epoll_udp_unreachable_live", test_nettest_epoll_udp_unreachable_live },
     { "epoll_udp6",                 test_nettest_epoll_udp6                 },
+    { "epoll_udp_queued",           test_nettest_epoll_udp_queued           },
     { "epoll_udp_connect",          test_nettest_epoll_udp_connect          },
     { "epoll_udp_connect_dns",      test_nettest_epoll_udp_connect_dns      },
     { "epoll_udp_connect_unreachable", test_nettest_epoll_udp_connect_unreachable },

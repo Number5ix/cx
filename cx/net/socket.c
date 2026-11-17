@@ -23,14 +23,9 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
     // storage that also depends on type. A stream socket buffers an inbound byte stream and owns
     // an outbound chain, and has exactly one flow created up front so single-connection consumers
     // never construct one. A datagram socket has no receive ring at all -- packets are pooled
-    // buffers delivered on flow inboxes -- only a send queue, and it demultiplexes many peers
-    // into a table.
-    if (self->type == NST_Datagram) {
-        // Outbound datagram queue: netsocketSend() pushes here when the OS will not take a datagram
-        // immediately, and the send path drains it on write-readiness. Whole NetMessages, each with
-        // its own destination address.
-        prqInitDynamic(&self->bufs.dgram.send, 32, 256, 0, PRQ_Grow_100, PRQ_Grow_50);
-    } else if (self->type == NST_Quic) {
+    // buffers delivered on flow inboxes -- and makes its send queue and flow table only when it
+    // first needs them (see _netDgramSendQueueLive and NetQueue__admitFlowObj).
+    if (self->type == NST_Quic) {
         // No platform factory ever assigns this one a handle, so hold the invariant here rather
         // than in each of them.
         self->handle = NET_INVALID_HANDLE;
@@ -41,16 +36,12 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
         // connection-level work, and a table keyed on stream id for its streams.
         htInit(&self->flows, uint64, object, 16);
         self->flow = netflowCreate(self, &self->remote);
-    } else {
+    } else if (self->type == NST_Stream) {
         // TODO: Make the buffer segment size configurable
         bufringInit(&self->bufs.stream.recv, NET_STREAM_SEGSZ);
         bufchainInit(&self->bufs.stream.send, NET_STREAM_SEGSZ);
         self->flow = netflowCreate(self, &self->remote);
     }
-
-    // The connect fallback list is [noinit] (built by hand like the other type-specific storage);
-    // NetSocket_destroy tears it down unconditionally, so it must be initialized unconditionally.
-    saInit(&self->connQueue, NetAddr, 4);
 
     // The send buffer starts empty, so a send can go out immediately without queuing.
     atomicStore(bool, &self->canSend, true, Relaxed);
@@ -330,12 +321,14 @@ void NetSocket_destroy(_In_ NetSocket* self)
     // live, since it sends through the endpoint socket it borrows. Undelivered *received*
     // datagrams are not here -- they live on flow inboxes and are freed when the flows are.
     if (self->type == NST_Datagram) {
-        NetMessage* m;
-        while ((m = (NetMessage*)prqPop(&self->bufs.dgram.send)) != NULL) {
-            bufDestroy(&m->buf);
-            xaFree(m);
+        if (_netDgramSendQueueLive(self)) {
+            NetMessage* m;
+            while ((m = (NetMessage*)prqPop(&self->bufs.dgram.send)) != NULL) {
+                bufDestroy(&m->buf);
+                xaFree(m);
+            }
+            prqDestroy(&self->bufs.dgram.send);
         }
-        prqDestroy(&self->bufs.dgram.send);
     } else if (self->type != NST_Quic) {
         bufringDestroy(&self->bufs.stream.recv);
         bufchainDestroy(&self->bufs.stream.send);

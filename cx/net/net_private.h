@@ -149,6 +149,11 @@ bool netSockGetBuffers(NetSockHandle h, _Out_ size_t* recvBytes, _Out_ size_t* s
 // 80 KB.
 #define NET_STREAM_SEGSZ (65536 - 64)
 
+// Whether a datagram socket's outbound queue (NetSocketBufs.dgram.send) has been made. It is made
+// the first time the OS refuses a send and one has to wait; a socket whose sends always go
+// straight out never pays for it. A made queue's minsz is never 0. Read and made under sendLock.
+#define _netDgramSendQueueLive(sock) ((sock)->bufs.dgram.send.minsz != 0)
+
 // Datagram receive and send errors that stand for a packet the network could not deliver (an ICMP
 // unreachable or time exceeded), as the receive shims report them.
 _meta_inline bool _netIsUnreachableErr(NetErrorCode err)

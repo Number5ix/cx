@@ -508,6 +508,9 @@ static const testspec tests[] = {
     { "netselect: Oversized Datagram", "nettest", "select_udp_oversize" },
     { "netselect: Receive After ICMP Errors", "nettest", "select_udp_unreachable_live" },
     { "netselect: IPv6 Datagram Loopback", "nettest", "select_udp6" },
+#if defined(_PLATFORM_LINUX)
+    { "netselect: Queued Datagram Sends", "nettest", "select_udp_queued" },
+#endif
     { "netselect: Datagram Connect", "nettest", "select_udp_connect" },
     { "netselect: Datagram Connect DNS", "nettest", "select_udp_connect_dns" },
     { "netselect: Connected Datagram Unreachable", "nettest", "select_udp_connect_unreachable" },
@@ -569,6 +572,7 @@ static const testspec tests[] = {
     { "netepoll: Oversized Datagram", "nettest", "epoll_udp_oversize" },
     { "netepoll: Receive After ICMP Errors", "nettest", "epoll_udp_unreachable_live" },
     { "netepoll: IPv6 Datagram Loopback", "nettest", "epoll_udp6" },
+    { "netepoll: Queued Datagram Sends", "nettest", "epoll_udp_queued" },
     { "netepoll: Datagram Connect", "nettest", "epoll_udp_connect" },
     { "netepoll: Datagram Connect DNS", "nettest", "epoll_udp_connect_dns" },
     { "netepoll: Connected Datagram Unreachable", "nettest", "epoll_udp_connect_unreachable" },

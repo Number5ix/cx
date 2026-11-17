@@ -98,6 +98,8 @@ static void reportSendUnreach(NetQueue* q, NetSocket* sock)
 static void flushDgramBytes(NetQueue* q, NetSocket* sock, NetErrorCode* err, NetAddr* errAddr)
 {
     *err = NERR_None;
+    if (!_netDgramSendQueueLive(sock))
+        return;
 
     for (;;) {
         NetMessage* m = (NetMessage*)prqPeek(&sock->bufs.dgram.send, 0);
@@ -306,6 +308,9 @@ static NetMessage* dgramWrapPayload(NetQueue* q, const uint8* data, size_t len,
 static bool dgramQueueMsg(NetQueue* q, NetSocket* sock, NetMessage* msg)
 {
     size_t len = msg->buf ? msg->buf->len : 0;
+
+    if (!_netDgramSendQueueLive(sock))
+        prqInitDynamic(&sock->bufs.dgram.send, 32, 256, 0, PRQ_Grow_100, PRQ_Grow_50);
 
     if (!prqPush(&sock->bufs.dgram.send, msg)) {
         netpoolFreeMsg(_netqueuePool(q), &msg);   // queue full and could not grow; drop
