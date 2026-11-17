@@ -136,6 +136,13 @@ bool netSockRecvInfo(NetSockHandle h, bool enable);
 // measures the path with. Returns false if the platform cannot.
 bool netSockDontFragment(NetSockHandle h, bool enable);
 
+// Set the OS receive and send buffer sizes (SO_RCVBUF / SO_SNDBUF); 0 leaves that one alone.
+// Returns false if the OS refused either.
+bool netSockSetBuffers(NetSockHandle h, size_t recvBytes, size_t sendBytes);
+
+// Read the OS receive and send buffer sizes. Returns false if the OS would not say.
+bool netSockGetBuffers(NetSockHandle h, _Out_ size_t* recvBytes, _Out_ size_t* sendBytes);
+
 // Datagram receive and send errors that stand for a packet the network could not deliver (an ICMP
 // unreachable or time exceeded), as the receive shims report them.
 _meta_inline bool _netIsUnreachableErr(NetErrorCode err)

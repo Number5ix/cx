@@ -35,6 +35,9 @@ static void setupHandle(_In_ NetSocket* sock, SOCKET s, int af)
         setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&one, sizeof(one));
     }
 
+    if (sock->osRecvBuf || sock->osSendBuf)
+        netSockSetBuffers((NetSockHandle)s, sock->osRecvBuf, sock->osSendBuf);
+
     if (sock->type == NST_Stream) {
         setNoDelay(s);
         return;

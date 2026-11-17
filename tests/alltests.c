@@ -494,6 +494,7 @@ static const testspec tests[] = {
     { "net: Composed Helpers", "nettest", "helpers" },
     { "net: Closed Socket Handle", "nettest", "close_handle" },
     { "net: Per-Datagram IP Information", "nettest", "pktinfo" },
+    { "net: OS Buffer Sizes", "nettest", "sockbuf" },
     { "netfilter: Datagram Cold Send", "nettest", "filter_dgram_send" },
     { "netselect: Datagram Loopback", "nettest", "select_udp" },
     { "netselect: Stream Loopback", "nettest", "select_stream" },

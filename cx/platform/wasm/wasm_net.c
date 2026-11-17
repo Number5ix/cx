@@ -4,6 +4,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <net/if.h>
 #include <netdb.h>
 #include <signal.h>
@@ -292,6 +293,33 @@ uint32 netSockDrainErrors(NetSockHandle h, NetSockErrFn fn, void* ctx)
     unused_noeval(fn);
     unused_noeval(ctx);
     return 0;
+}
+
+_Use_decl_annotations_
+bool netSockSetBuffers(NetSockHandle h, size_t recvBytes, size_t sendBytes)
+{
+    bool ok = true;
+    if (recvBytes) {
+        int v = (int)min(recvBytes, (size_t)INT_MAX);
+        ok    = setsockopt((int)h, SOL_SOCKET, SO_RCVBUF, &v, sizeof(v)) == 0 && ok;
+    }
+    if (sendBytes) {
+        int v = (int)min(sendBytes, (size_t)INT_MAX);
+        ok    = setsockopt((int)h, SOL_SOCKET, SO_SNDBUF, &v, sizeof(v)) == 0 && ok;
+    }
+    return ok;
+}
+
+_Use_decl_annotations_
+bool netSockGetBuffers(NetSockHandle h, size_t* recvBytes, size_t* sendBytes)
+{
+    int rv = 0, sv = 0;
+    socklen_t rl = sizeof(rv), sl = sizeof(sv);
+    bool ok = getsockopt((int)h, SOL_SOCKET, SO_RCVBUF, &rv, &rl) == 0 &&
+              getsockopt((int)h, SOL_SOCKET, SO_SNDBUF, &sv, &sl) == 0;
+    *recvBytes = ok && rv > 0 ? (size_t)rv : 0;
+    *sendBytes = ok && sv > 0 ? (size_t)sv : 0;
+    return ok;
 }
 
 _Use_decl_annotations_

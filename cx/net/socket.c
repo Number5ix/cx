@@ -410,6 +410,31 @@ bool NetSocket_setRecvInfo(_In_ NetSocket* self, bool enable)
     return true;
 }
 
+bool NetSocket_setOSBuffers(_In_ NetSocket* self, size_t recvBytes, size_t sendBytes)
+{
+    if (self->handle == NET_INVALID_HANDLE)
+        return false;
+
+    if (!netSockSetBuffers(self->handle, recvBytes, sendBytes))
+        return false;
+
+    if (recvBytes)
+        self->osRecvBuf = recvBytes;
+    if (sendBytes)
+        self->osSendBuf = sendBytes;
+    return true;
+}
+
+bool NetSocket_getOSBuffers(_In_ NetSocket* self, _Out_ size_t* recvBytes, _Out_ size_t* sendBytes)
+{
+    *recvBytes = 0;
+    *sendBytes = 0;
+    if (self->handle == NET_INVALID_HANDLE)
+        return false;
+
+    return netSockGetBuffers(self->handle, recvBytes, sendBytes);
+}
+
 bool NetSocket_setDontFragment(_In_ NetSocket* self, bool enable)
 {
     if (self->type != NST_Datagram || self->handle == NET_INVALID_HANDLE)

@@ -105,6 +105,22 @@ typedef struct NetQueueConfig {
     /// A socket inherits this when added to the queue, the same way sendHigh/sendLow are
     /// inherited; set NetSocket::connectPref to override it per socket.
     NetConnectPref connectPref;
+
+    /// @brief Operating system receive buffer for sockets on this queue, in bytes (0 = the OS
+    /// default)
+    ///
+    /// This is the kernel's own buffer, which holds datagrams and stream bytes until the queue reads
+    /// them -- not recvBufSize, the size of each pooled buffer they are read into. A busy datagram
+    /// socket drops what arrives while this is full. A socket inherits it when added to the queue
+    /// unless netsocketSetOSBuffers() already set its own; that includes sockets the queue creates
+    /// itself, such as the UDP socket behind a QUIC connection.
+    size_t osRecvBuf;
+
+    /// @brief Operating system send buffer for sockets on this queue, in bytes (0 = the OS default)
+    ///
+    /// Inherited the same way as osRecvBuf. Data that does not fit waits in the socket's own send
+    /// queue instead (see sendHigh).
+    size_t osSendBuf;
 } NetQueueConfig;
 
 // Backend hook called when a send leaves data queued on a socket, so the backend can arrange

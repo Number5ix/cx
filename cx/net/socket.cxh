@@ -132,6 +132,10 @@ abstract class NetSocket
     // Whether setDontFragment() turned the bit on, so a replacement handle gets it too.
     bool dontFragment;
 
+    // OS buffer sizes setOSBuffers() asked for (0 = never set), reapplied to a replacement handle.
+    size_t osRecvBuf;
+    size_t osSendBuf;
+
     // An unreachable report (NetErrorCode) a datagram send absorbed while holding sendLock, for
     // whoever drops the lock to deliver. See dgramSendTo() in dataplane.c.
     atomic[uint32] sendUnreach;
@@ -334,6 +338,40 @@ abstract class NetSocket
     /// @param enable true to set the bit, false to leave fragmentation to the OS
     /// @return true if the platform could set it
     unbound bool setDontFragment(bool enable);
+
+    /// Set the operating system's receive and send buffer sizes for this socket
+    ///
+    /// These are the kernel's buffers between the network and the queue. A larger receive buffer
+    /// lets a busy datagram socket ride out a burst without dropping, and a larger send buffer lets
+    /// more go out before data has to wait in the socket's own send queue. Pass 0 for either to
+    /// leave it as it is. For a stream socket, set them before connect() or listen() -- the receive
+    /// size decides the TCP window the connection opens with -- and accepted connections take the
+    /// listener's.
+    ///
+    /// The OS treats the sizes as requests: Linux doubles them for its own bookkeeping and caps them
+    /// at `net.core.rmem_max` / `net.core.wmem_max`, and other systems have caps of their own. Read
+    /// back what was applied with getOSBuffers().
+    ///
+    /// The sizes stay with the socket when it moves to a new OS handle, as connect() and binding to
+    /// the other address family do. NetQueueConfig::osRecvBuf and osSendBuf set them for every
+    /// socket on a queue.
+    ///
+    /// @param recvBytes Receive buffer size in bytes, or 0 to leave it unchanged
+    /// @param sendBytes Send buffer size in bytes, or 0 to leave it unchanged
+    /// @return true if the OS accepted the sizes, false if it refused or the socket has no OS handle
+    ///
+    /// Example:
+    /// @code
+    ///   netsocketSetOSBuffers(sock, 4 * 1024 * 1024, 0);
+    /// @endcode
+    unbound bool setOSBuffers(size_t recvBytes, size_t sendBytes);
+
+    /// Read the receive and send buffer sizes the operating system is using for this socket
+    ///
+    /// @param recvBytes Receives the receive buffer size in bytes
+    /// @param sendBytes Receives the send buffer size in bytes
+    /// @return true if the OS reported both, false if it could not or the socket has no OS handle
+    unbound bool getOSBuffers([out] size_t* recvBytes, [out] size_t* sendBytes);
 
     /// Open an outbound connection to a host and port
     ///

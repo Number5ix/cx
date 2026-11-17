@@ -2373,6 +2373,60 @@ static int dgramIPv6Body(MakeDgramQueueFn make)
     return ret;
 }
 
+// OS buffer sizes: set on a socket, kept across a new handle, and inherited from the queue's
+// defaults by a socket that has not set its own. The OS may round a size up (Linux doubles it), so
+// only "at least" is checked.
+static int test_nettest_sockbuf(void)
+{
+    int ret = 0;
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    conf.osRecvBuf = 96 * 1024;
+    conf.osSendBuf = 48 * 1024;
+    NetQueue* q    = netqueueCreate(&conf);
+    if (!q)
+        TEST_FAIL(1, _SL("could not create a queue"), stvNone);
+
+    size_t r = 0, s = 0;
+
+    NetSocket* own = netqueueSocket(q, NST_Datagram);
+    if (!netsocketSetOSBuffers(own, 80 * 1024, 0))
+        TEST_FAILV(ret, 1, _SL("netsocketSetOSBuffers() refused"), stvNone);
+    if (!netsocketGetOSBuffers(own, &r, &s) || r < 80 * 1024)
+        TEST_FAILV(ret, 1, _SL("receive buffer ${uint} after setting 80 KB"), stvar(uint64, r));
+
+    // Binding to the other family replaces the handle; the size goes with it.
+    NetAddr v6;
+    netAddrFromStr(&v6, _SL("::1"));
+    if (netsocketBind(own, &v6)) {
+        if (!netsocketGetOSBuffers(own, &r, &s) || r < 80 * 1024)
+            TEST_FAILV(ret, 1, _SL("receive buffer ${uint} after the handle was replaced"),
+                       stvar(uint64, r));
+    }
+
+    // Joining the queue fills in only what the socket did not set itself.
+    netqueueAddSocket(q, own);
+    if (own->osRecvBuf != 80 * 1024 || own->osSendBuf != 48 * 1024)
+        TEST_FAILV(ret, 1, _SL("own socket after joining: recv ${uint}, send ${uint}"),
+                   stvar(uint64, own->osRecvBuf), stvar(uint64, own->osSendBuf));
+
+    uint16 port      = 0;
+    NetSocket* inher = boundDgramSocket(q, &port);
+    if (!inher || !netsocketGetOSBuffers(inher, &r, &s) || r < 96 * 1024 || s < 48 * 1024)
+        TEST_FAILV(ret, 1, _SL("inherited buffers: recv ${uint}, send ${uint}"), stvar(uint64, r),
+                   stvar(uint64, s));
+
+    netsocketClose(own);
+    objRelease(&own);
+    if (inher)
+        netsocketClose(inher);
+    objRelease(&inher);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
 // ---------------------------------------------------------------------------------------------
 // netqueueResolve: the public name lookup, delivered through the queue
 // ---------------------------------------------------------------------------------------------
@@ -6201,7 +6255,7 @@ int test_nettest_grp_filterstream(void)
 int test_nettest_grp_general(void)
 {
     TEST_CHAIN(test_nettest_addr, test_nettest_helpers, test_nettest_close_handle,
-               test_nettest_pktinfo);
+               test_nettest_pktinfo, test_nettest_sockbuf);
 }
 
 int test_nettest_grp_filterdgram(void)
@@ -6394,6 +6448,7 @@ testfunc nettest_funcs[] = {
     { "select_shutdown_stall_handler", test_nettest_select_shutdown_stall_handler },
     { "shutdown_stall_io",          test_nettest_shutdown_stall_io          },
     { "shutdown_stall_handler",     test_nettest_shutdown_stall_handler     },
+    { "sockbuf",                    test_nettest_sockbuf                    },
     { "grp_general",                test_nettest_grp_general                },
     { "grp_filterdgram",            test_nettest_grp_filterdgram            },
     { "select_udp_oversize",        test_nettest_select_udp_oversize        },

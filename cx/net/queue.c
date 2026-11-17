@@ -267,6 +267,12 @@ bool NetQueue_addSocket(_In_ NetQueue* self, NetSocket* socket)
         // from a queue-wide non-default setting rather than reselecting Default itself.
         if (socket->connectPref == NCP_Default)
             socket->connectPref = self->conf.connectPref;
+
+        // And the OS buffer sizes, which have to reach the handle itself.
+        size_t rb = socket->osRecvBuf ? 0 : self->conf.osRecvBuf;
+        size_t sb = socket->osSendBuf ? 0 : self->conf.osSendBuf;
+        if (rb || sb)
+            netsocketSetOSBuffers(socket, rb, sb);
     }
 
     return ret;
