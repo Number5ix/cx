@@ -30,6 +30,10 @@ abstract class NetSocket
     weak[NetQueue] queue;   ///< NetQueue this socket is registered to (may be NULL)
     NetSocketType type;     ///< Connection or connectionless, immutable
 
+    // An unreachable report (NetErrorCode) a datagram send absorbed while holding sendLock, for
+    // whoever drops the lock to deliver. See dgramSendTo() in dataplane.c.
+    atomic[uint32] sendUnreach;
+
     /// @brief Platform-neutral OS handle, set by the platform factory
     ///
     /// Lets shared code in cx/net/ read a socket's handle to add it to a select set or issue a
@@ -42,6 +46,18 @@ abstract class NetSocket
 
     atomic[uint32] state;   ///< See NetSocketState enum
     atomic[bool] canSend;   ///< Send buffer empty; can send immediately
+
+    /// @brief The OS is reporting per-datagram IP information; see setRecvInfo()
+    ///
+    /// Datagram sockets only. While set, the ingest path asks the OS for the local address and ECN
+    /// mark of every datagram and delivers them on NetMessage::info.
+    bool recvInfo;
+
+    // Whether setDontFragment() turned the bit on, so a replacement handle gets it too.
+    bool dontFragment;
+
+    // Address family (NetAddrType) of the current OS handle, set by the platform socket.
+    uint8 family;
 
     // An accepted socket the application has not been handed yet. While it is set, no worker
     // delivers anything of this socket's to the application: NET_Accepted travels on the
@@ -72,12 +88,6 @@ abstract class NetSocket
     // should go in the ctx captured at handler registration instead.
 
     uint32 mru;             ///< Maximum size of received datagrams
-
-    /// @brief The OS is reporting per-datagram IP information; see setRecvInfo()
-    ///
-    /// Datagram sockets only. While set, the ingest path asks the OS for the local address and ECN
-    /// mark of every datagram and delivers them on NetMessage::info.
-    bool recvInfo;
 
     /// @brief Type-specific send/receive buffers; which arm is live depends on `type`
     ///
@@ -129,16 +139,6 @@ abstract class NetSocket
     // readiness backends.
     atomic[uint32] recvPosted;
 
-    // Whether setDontFragment() turned the bit on, so a replacement handle gets it too.
-    bool dontFragment;
-
-    // OS buffer sizes setOSBuffers() asked for (0 = never set), reapplied to a replacement handle.
-    size_t osRecvBuf;
-    size_t osSendBuf;
-
-    // An unreachable report (NetErrorCode) a datagram send absorbed while holding sendLock, for
-    // whoever drops the lock to deliver. See dgramSendTo() in dataplane.c.
-    atomic[uint32] sendUnreach;
 
     /// @brief Per-socket handler overrides, optional
     ///
@@ -196,6 +196,10 @@ abstract class NetSocket
     /// setting when the socket is added (see NetQueue::connectPref)
     NetConnectPref connectPref;
 
+    // OS buffer sizes setOSBuffers() asked for (0 = never set), reapplied to a replacement handle.
+    // Each shares an 8-byte slot with a 4-byte connect field.
+    uint32 osRecvBuf;
+
     /// @brief List of fallback addresses to try to connect to if pending connect fails
     ///
     /// Filled in by the resolver, then reordered by family per connectPref. The connect state
@@ -204,6 +208,7 @@ abstract class NetSocket
     [noinit] sarray[NetAddr] connQueue;
 
     int32 connectIdx;        ///< Index of the next connQueue address to try
+    uint32 osSendBuf;        // see osRecvBuf
 
     /// @brief Timer arming the in-flight connect attempt's deadline, or 0 when none is armed
     ///

@@ -55,8 +55,8 @@ _objfactory_check NetSocketWin* NetSocketWin_create(NetSocketType type)
     self = objInstCreate(NetSocketWin);
 
     self->type = type;
-    self->af   = AF_INET;
-    self->sock = socket(self->af, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, IPPROTO_IP);
+    self->family = NA_IPv4;
+    self->sock = socket(AF_INET, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, IPPROTO_IP);
 
     // A freshly created socket is NS_Init, not NS_Closed. The bind/listen guards test against
     // NS_Closed, so storing NS_Closed here inverted them and rejected every bind on a new socket.
@@ -64,7 +64,7 @@ _objfactory_check NetSocketWin* NetSocketWin_create(NetSocketType type)
     atomicStore(uint32, &self->state, NS_Init, Relaxed);
 
     if (self->sock != INVALID_SOCKET)
-        setupHandle(NetSocket(self), self->sock, self->af);
+        setupHandle(NetSocket(self), self->sock, AF_INET);
 
     if (self->sock == INVALID_SOCKET || !objInstInit(self)) {
         objRelease(&self);
@@ -82,13 +82,13 @@ NetSocketWin_wrap(SOCKET sock, NetSocketType type, NetSocketState state)
     self->type   = type;
     self->sock   = sock;
     self->handle = (NetSockHandle)sock;
-    self->af     = AF_INET;
+    self->family = NA_IPv4;
     atomicStore(uint32, &self->state, state, Relaxed);
 
     struct sockaddr_storage sa;
     int salen = sizeof(sa);
     if (sock != INVALID_SOCKET && getsockname(sock, (struct sockaddr*)&sa, &salen) == 0)
-        self->af = sa.ss_family;
+        self->family = sa.ss_family == AF_INET6 ? NA_IPv6 : NA_IPv4;
 
     // An accepted socket inherits the listener's blocking mode; the backend drains until
     // WouldBlock, so it must be non-blocking regardless of how it arrived.
@@ -111,8 +111,7 @@ bool NetSocketWin_bind(_In_ NetSocketWin* self, const NetAddr* addr)
     // A handle's family is fixed when it is made, so binding to the other family takes a new one.
     // That is only possible while nothing else knows the old handle: before the socket is bound or
     // has joined a queue.
-    int af = addr->type == NA_IPv6 ? AF_INET6 : AF_INET;
-    if (af != self->af) {
+    if (addr->type != self->family) {
         if (self->local.type != NA_Unknown || self->queue ||
             !netPlatformResetSocket(NetSocket(self), addr->type, false))
             return false;
@@ -280,7 +279,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
     // fails at once instead of waiting.
     SOCKET old   = self->sock;
     self->sock   = ns;
-    self->af     = af;
+    self->family = af == AF_INET6 ? NA_IPv6 : NA_IPv4;
     self->handle = (NetSockHandle)ns;
     if (old != INVALID_SOCKET)
         closesocket(old);

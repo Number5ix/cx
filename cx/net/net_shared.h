@@ -411,6 +411,10 @@ typedef struct NetMessage {
     /// netsocketRecvInfo().
     NetPktInfo info;
 
+    uint8 kind;      // internal: NetMessageKind (net_private.h)
+    uint8 reason;    // internal: NetCloseReason, for a flow's terminal message
+    uint8 flags;     // internal: NetMessageFlags (net_private.h) -- how `buf` must be reclaimed
+
     union {
         // internal: the accepted socket in transit to a NET_Accepted event
         NetSocket* asock;
@@ -418,10 +422,6 @@ typedef struct NetMessage {
         // kinds are mutually exclusive, so on 64-bit this costs the message header nothing.
         NetTimerId timerId;
     };
-
-    uint8 kind;      // internal: NetMessageKind (net_private.h)
-    uint8 reason;    // internal: NetCloseReason, for a flow's terminal message
-    uint8 flags;     // internal: NetMessageFlags (net_private.h) -- how `buf` must be reclaimed
 } NetMessage;
 
 // Type-specific socket buffers, selected by NetSocketType. Internal to the socket

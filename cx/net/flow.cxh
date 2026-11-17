@@ -105,14 +105,6 @@ class NetFlow
     atomic[uint32] queued;    ///< Present on the queue's runqueue
     atomic[uint32] dying;     ///< Marked for close; blocks further dispatch
 
-    /// @brief Pending messages for this flow, in an intrusive lock-free stack
-    ///
-    /// Any ingest thread can push; only the worker holding the claim drains it.
-    atomic[ptr] inbox;
-
-    NetMessage *ready;        ///< Consumer-private FIFO head, refilled from inbox
-    NetMessage *readytail;    ///< Consumer-private FIFO tail, for O(1) append
-
     /// @brief Last time a packet was ingested for this flow, for approximate LRU
     ///
     /// Reclaim scans for the oldest entries rather than keeping an ordered list, since updating a
@@ -120,6 +112,14 @@ class NetFlow
     /// coarse ~1 second tick rather than a precise timestamp, which keeps it small enough to
     /// update as a single atomic write.
     atomic[uint32] lastActive;
+
+    /// @brief Pending messages for this flow, in an intrusive lock-free stack
+    ///
+    /// Any ingest thread can push; only the worker holding the claim drains it.
+    atomic[ptr] inbox;
+
+    NetMessage *ready;        ///< Consumer-private FIFO head, refilled from inbox
+    NetMessage *readytail;    ///< Consumer-private FIFO tail, for O(1) append
 
     /// @brief Application state for this peer, allocated lazily
     ///

@@ -421,9 +421,9 @@ bool NetSocket_setOSBuffers(_In_ NetSocket* self, size_t recvBytes, size_t sendB
         return false;
 
     if (recvBytes)
-        self->osRecvBuf = recvBytes;
+        self->osRecvBuf = (uint32)min(recvBytes, (size_t)0x7fffffff);
     if (sendBytes)
-        self->osSendBuf = sendBytes;
+        self->osSendBuf = (uint32)min(sendBytes, (size_t)0x7fffffff);
     return true;
 }
 

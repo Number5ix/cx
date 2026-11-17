@@ -13,7 +13,6 @@
 class NetSocketPosix extends NetSocket
 {
     int fd;
-    int af;   // address family the handle was made with
 
     override close;
 

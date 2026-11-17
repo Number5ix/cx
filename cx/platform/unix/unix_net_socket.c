@@ -85,8 +85,8 @@ _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
     self = objInstCreate(NetSocketPosix);
 
     self->type = type;
-    self->af   = AF_INET;
-    self->fd   = socket(self->af, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, 0);
+    self->family = NA_IPv4;
+    self->fd   = socket(AF_INET, (type == NST_Stream) ? SOCK_STREAM : SOCK_DGRAM, 0);
 
     // A freshly created socket is NS_Init, not NS_Closed -- the bind/listen guards test against
     // NS_Closed, so storing NS_Closed here would reject every bind on a new socket.
@@ -94,7 +94,7 @@ _objfactory_check NetSocketPosix* NetSocketPosix_create(NetSocketType type)
     atomicStore(uint32, &self->state, NS_Init, Relaxed);
 
     if (self->fd >= 0)
-        setupHandle(NetSocket(self), self->fd, self->af);
+        setupHandle(NetSocket(self), self->fd, AF_INET);
 
     if (self->fd < 0 || !objInstInit(self)) {
         objRelease(&self);
@@ -112,13 +112,13 @@ NetSocketPosix_wrap(int fd, NetSocketType type, NetSocketState state)
     self->type   = type;
     self->fd     = fd;
     self->handle = (NetSockHandle)fd;
-    self->af     = AF_INET;
+    self->family = NA_IPv4;
     atomicStore(uint32, &self->state, state, Relaxed);
 
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
     if (fd >= 0 && getsockname(fd, (struct sockaddr*)&sa, &salen) == 0)
-        self->af = sa.ss_family;
+        self->family = sa.ss_family == AF_INET6 ? NA_IPv6 : NA_IPv4;
 
     // An accepted fd inherits the listener's blocking mode; the backend drains until WouldBlock,
     // so it must be non-blocking regardless of how it arrived.
@@ -140,8 +140,7 @@ bool NetSocketPosix_bind(_In_ NetSocketPosix* self, const NetAddr* addr)
     // A handle's family is fixed when it is made, so binding to the other family takes a new one.
     // That is only possible while nothing else knows the old handle: before the socket is bound or
     // has joined a queue.
-    int af = addr->type == NA_IPv6 ? AF_INET6 : AF_INET;
-    if (af != self->af) {
+    if (addr->type != self->family) {
         if (self->local.type != NA_Unknown || self->queue ||
             !netPlatformResetSocket(NetSocket(self), addr->type, false))
             return false;
@@ -295,7 +294,7 @@ bool netPlatformResetSocket(NetSocket* sock, NetAddrType family, bool bindAny)
     // fails at once instead of waiting.
     int old      = self->fd;
     self->fd     = ns;
-    self->af     = af;
+    self->family = af == AF_INET6 ? NA_IPv6 : NA_IPv4;
     self->handle = (NetSockHandle)ns;
     if (old >= 0)
         close(old);
