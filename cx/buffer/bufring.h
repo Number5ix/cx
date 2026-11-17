@@ -352,6 +352,22 @@ void bufringReserve(_Inout_ BufRing* ring, size_t minbytes,
 /// @see bufringReserve
 void bufringCommit(_Inout_ BufRing* ring, size_t bytes);
 
+/// Free an empty ring buffer's storage
+///
+/// An empty ring keeps its last segment, so the next write does not have to allocate one. A ring
+/// that can sit empty for a long time -- one per idle connection, say -- can give that memory back
+/// with this instead; the next write allocates a fresh segment. Does nothing if the ring holds
+/// data or has a write reserved (see bufringReserve()).
+///
+/// @param ring Ring buffer to trim
+///
+/// Example:
+/// @code
+///   bufringRead(&ring, buf, sizeof(buf));
+///   bufringTrim(&ring);
+/// @endcode
+void bufringTrim(_Inout_ BufRing* ring);
+
 /// Destroy a ring buffer and free all associated resources.
 ///
 /// Frees all segments and their associated data buffers, then resets the buffer structure

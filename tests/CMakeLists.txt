@@ -454,6 +454,7 @@ add_test(NAME "\"bufring: Ring Buffer Wraparound\"" COMMAND test_runner buftest 
 add_test(NAME "\"bufring: Multi-Segment Operations\"" COMMAND test_runner buftest ring_multisegment)
 add_test(NAME "\"bufring: Reserve/Commit\"" COMMAND test_runner buftest ring_reserve)
 add_test(NAME "\"bufring: Reserve Across Read\"" COMMAND test_runner buftest ring_reserve_read)
+add_test(NAME "\"bufring: Trim\"" COMMAND test_runner buftest ring_trim)
 add_test(NAME "\"bufchain: Gather IOV\"" COMMAND test_runner buftest chain_gather_iov)
 add_test(NAME "\"bufpool: Basic Operations\"" COMMAND test_runner buftest bufpool_basic)
 add_test(NAME "\"bufpool: Reuse\"" COMMAND test_runner buftest bufpool_reuse)

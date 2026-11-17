@@ -1302,6 +1302,49 @@ static int test_buffer_append()
     return ret;
 }
 
+// An empty ring gives its storage back on a trim and keeps working; one holding data or a write
+// reservation keeps everything.
+static int test_bufring_trim()
+{
+    int ret = 0;
+    BufRing ring;
+    uint8* ptr = NULL;
+    size_t len = 0;
+    uint8 readbuf[64];
+
+    bufringInit(&ring, 128);
+    bufringWrite(&ring, testdata1, 40);
+
+    bufringTrim(&ring);
+    if (!ring.head || ring.total != 40)
+        TEST_FAILV(ret, 1, _SL("trim of a ring holding ${uint} bytes freed it"), stvar(size, ring.total));
+
+    if (bufringRead(&ring, readbuf, 40) != 40 || memcmp(readbuf, testdata1, 40))
+        TEST_FAILV(ret, 1, _SL("read before trim returned the wrong data"), stvNone);
+    if (!ring.head)
+        TEST_FAILV(ret, 1, _SL("a drained ring dropped its segment without a trim"), stvNone);
+
+    bufringTrim(&ring);
+    if (ring.head || ring.tail || ring.total != 0)
+        TEST_FAILV(ret, 1, _SL("trim of an empty ring kept its segment"), stvNone);
+
+    bufringWrite(&ring, testdata2, 30);
+    if (bufringRead(&ring, readbuf, 30) != 30 || memcmp(readbuf, testdata2, 30))
+        TEST_FAILV(ret, 1, _SL("write after trim did not read back"), stvNone);
+
+    bufringReserve(&ring, 16, &ptr, &len);
+    bufringTrim(&ring);
+    if (!ring.head)
+        TEST_FAILV(ret, 1, _SL("trim freed a segment with a write reserved"), stvNone);
+    memcpy(ptr, testdata1, 16);
+    bufringCommit(&ring, 16);
+    if (bufringRead(&ring, readbuf, 16) != 16 || memcmp(readbuf, testdata1, 16))
+        TEST_FAILV(ret, 1, _SL("reserved write did not survive the trim"), stvNone);
+
+    bufringDestroy(&ring);
+    return ret;
+}
+
 testfunc buftest_funcs[] = {
     { "create",               test_buffer_create           },
     { "resize",               test_buffer_resize           },
@@ -1321,6 +1364,7 @@ testfunc buftest_funcs[] = {
     { "ring_multisegment",    test_bufring_multisegment    },
     { "ring_reserve",         test_bufring_reserve         },
     { "ring_reserve_read",    test_bufring_reserve_across_read },
+    { "ring_trim",            test_bufring_trim            },
     { "chain_gather_iov",     test_bufchain_gather_iov     },
     { "bufpool_basic",        test_bufpool_basic           },
     { "bufpool_reuse",        test_bufpool_reuse           },

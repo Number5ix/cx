@@ -44,8 +44,8 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
         self->flow = netflowCreate(self, &self->remote);
     } else {
         // TODO: Make the buffer segment size configurable
-        bufringInit(&self->bufs.stream.recv, 65536);
-        bufchainInit(&self->bufs.stream.send, 65536);
+        bufringInit(&self->bufs.stream.recv, NET_STREAM_SEGSZ);
+        bufchainInit(&self->bufs.stream.send, NET_STREAM_SEGSZ);
         self->flow = netflowCreate(self, &self->remote);
     }
 
@@ -90,12 +90,18 @@ size_t NetSocket_recv(_In_ NetSocket* self, _Out_ uint8* buf, size_t bufsz, _Out
             NetStreamFilter* head = saSize(flow->filters) > 0
                 ? objDynCast(NetStreamFilter, flow->filters.a[0])
                 : NULL;
-            if (head)
+            if (head) {
                 copied = bufringRead(&head->decOut, buf, bufsz);
+                bufringTrim(&head->decOut);
+            }
         }
     } else {
-        withMutex (&self->recvLock)
+        // Once drained, the ring gives its segment back rather than holding it for the rest of
+        // the connection; the next arrival allocates another.
+        withMutex (&self->recvLock) {
             copied = bufringRead(&self->bufs.stream.recv, buf, bufsz);
+            bufringTrim(&self->bufs.stream.recv);
+        }
     }
 
     objRelease(&flow);
@@ -141,6 +147,10 @@ bool NetSocket_recvMsgs(_In_ NetSocket* self, socketRecvCB cb, _In_opt_ void* ct
                     bufringRead(ring, msg.buf->data, avail);
                 }
             }
+
+            // Drained: give the ring's segment back rather than hold it for the connection's life.
+            if (ring && !msg.buf)
+                bufringTrim(ring);
         }
 
         if (msg.buf) {

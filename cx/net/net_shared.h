@@ -198,7 +198,7 @@ typedef enum {
 
 /// Segment size for a stream filter's boundary rings (encOut / decOut) and the flow's encode
 /// staging ring. A small default; revisit if a real multi-stage chain profiles badly.
-#define NET_FILTER_RING_SEGSZ 16384
+#define NET_FILTER_RING_SEGSZ (16384 - 64)
 
 /// Filter notification code, carried as the payload of a NET_FilterNotify event (see @ref
 /// net_filter)

@@ -143,6 +143,12 @@ bool netSockSetBuffers(NetSockHandle h, size_t recvBytes, size_t sendBytes);
 // Read the OS receive and send buffer sizes. Returns false if the OS would not say.
 bool netSockGetBuffers(NetSockHandle h, _Out_ size_t* recvBytes, _Out_ size_t* sendBytes);
 
+// Segment size for a stream socket's receive ring and send chain. It and NET_FILTER_RING_SEGSZ stay
+// 64 bytes under the round size to leave room for the buffer header and the allocator's own
+// per-block bytes: a segment of exactly 64 KB spills into the allocator's next size class up,
+// 80 KB.
+#define NET_STREAM_SEGSZ (65536 - 64)
+
 // Datagram receive and send errors that stand for a packet the network could not deliver (an ICMP
 // unreachable or time exceeded), as the receive shims report them.
 _meta_inline bool _netIsUnreachableErr(NetErrorCode err)

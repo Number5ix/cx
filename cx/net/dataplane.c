@@ -557,6 +557,22 @@ static NetDatagramFilter* dgramStage(NetFlow* flow, int32 idx)
     return objDynCast(NetDatagramFilter, flow->filters.a[idx]);
 }
 
+// Give back the segments of the chain's rings that are empty. Each ring otherwise keeps one for as
+// long as the flow lives, which on a quiet connection is memory doing nothing. Caller holds
+// filterLock.
+static void trimStreamChain(NetFlow* flow)
+{
+    if (flow->encIn)
+        bufringTrim(flow->encIn);
+    for (int32 i = 0; i < saSize(flow->filters); i++) {
+        NetStreamFilter* f = streamStage(flow, i);
+        if (f) {
+            bufringTrim(&f->encOut);
+            bufringTrim(&f->decOut);
+        }
+    }
+}
+
 // Encode chain for a stream, app -> wire: stage i reads the staging ring (i == 0) or the previous
 // stage's encOut, and appends to its own, repeating until no stage has more to produce. The
 // wire-end stage's output becomes real outbound bytes on the send chain. Caller holds filterLock
@@ -596,6 +612,7 @@ static bool streamEncodeChain(NetSocket* sock, NetFlow* flow)
         return false;
 
     drainRingToChain(&last->encOut, &sock->bufs.stream.send);
+    trimStreamChain(flow);
     return true;
 }
 
@@ -635,6 +652,9 @@ static bool streamDecodeChain(NetSocket* sock, NetFlow* flow)
         }
     }
 
+
+    bufringTrim(&sock->bufs.stream.recv);
+    trimStreamChain(flow);
     return true;
 }
 

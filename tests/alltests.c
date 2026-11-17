@@ -271,6 +271,7 @@ static const testspec tests[] = {
     { "bufring: Multi-Segment Operations", "buftest", "ring_multisegment" },
     { "bufring: Reserve/Commit", "buftest", "ring_reserve" },
     { "bufring: Reserve Across Read", "buftest", "ring_reserve_read" },
+    { "bufring: Trim", "buftest", "ring_trim" },
     { "bufchain: Gather IOV", "buftest", "chain_gather_iov" },
     { "bufpool: Basic Operations", "buftest", "bufpool_basic" },
     { "bufpool: Reuse", "buftest", "bufpool_reuse" },

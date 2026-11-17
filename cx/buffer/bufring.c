@@ -407,6 +407,23 @@ Buffer _bufringStealHead(_Inout_ BufRing* ring)
 }
 
 _Use_decl_annotations_
+void bufringTrim(BufRing* ring)
+{
+    if (ring->total > 0 || ring->reserved > 0)
+        return;
+
+    BufRingNode* node = ring->head;
+    while (node) {
+        BufRingNode* next = node->next;
+        bufDestroy(&node->buf);
+        xaFree(node);
+        node = next;
+    }
+    ring->head = NULL;
+    ring->tail = NULL;
+}
+
+_Use_decl_annotations_
 void bufringDestroy(BufRing* ring)
 {
     // An outstanding reservation means someone may still be about to write into this memory.
