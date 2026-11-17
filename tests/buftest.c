@@ -1345,6 +1345,53 @@ static int test_bufring_trim()
     return ret;
 }
 
+// A sized reservation never lands in a larger segment: it starts a new one of the requested size,
+// and the larger one is freed once its data has been read -- or at once if it held none.
+static int test_bufring_reserve_seg()
+{
+    int ret = 0;
+    BufRing ring;
+    uint8* ptr = NULL;
+    size_t len = 0;
+    uint8 readbuf[128];
+
+    bufringInit(&ring, 1024);
+    bufringWrite(&ring, testdata1, 100);   // lands in a 1024-byte segment
+
+    bufringReserveSeg(&ring, 16, 256, &ptr, &len);
+    if (ring.tail == ring.head || ring.tail->buf->sz != 256 || len > 256)
+        TEST_FAILV(ret, 1, _SL("reservation went into a ${uint}-byte segment, expected a new 256"),
+                   stvar(size, ring.tail ? ring.tail->buf->sz : 0));
+    memcpy(ptr, testdata2, 20);
+    bufringCommit(&ring, 20);
+
+    if (bufringRead(&ring, readbuf, 120) != 120 || memcmp(readbuf, testdata1, 100) ||
+        memcmp(readbuf + 100, testdata2, 20))
+        TEST_FAILV(ret, 1, _SL("data across the two segments did not read back"), stvNone);
+    if (ring.head != ring.tail || ring.head->buf->sz != 256)
+        TEST_FAILV(ret, 1, _SL("the large segment outlived its data"), stvNone);
+
+    // A segment no larger than asked for is reused.
+    BufRingNode* small = ring.tail;
+    bufringReserveSeg(&ring, 16, 256, &ptr, &len);
+    if (ring.tail != small)
+        TEST_FAILV(ret, 1, _SL("a small enough segment was not reused"), stvNone);
+    bufringCommit(&ring, 0);
+    bufringDestroy(&ring);
+
+    // An empty ring holding a large segment gives it up instead of keeping it behind the new one.
+    bufringInit(&ring, 1024);
+    bufringWrite(&ring, testdata1, 10);
+    bufringRead(&ring, readbuf, 10);
+    bufringReserveSeg(&ring, 16, 256, &ptr, &len);
+    if (ring.head != ring.tail || ring.tail->buf->sz != 256)
+        TEST_FAILV(ret, 1, _SL("an empty large segment was kept"), stvNone);
+    bufringCommit(&ring, 0);
+    bufringDestroy(&ring);
+
+    return ret;
+}
+
 testfunc buftest_funcs[] = {
     { "create",               test_buffer_create           },
     { "resize",               test_buffer_resize           },
@@ -1365,6 +1412,7 @@ testfunc buftest_funcs[] = {
     { "ring_reserve",         test_bufring_reserve         },
     { "ring_reserve_read",    test_bufring_reserve_across_read },
     { "ring_trim",            test_bufring_trim            },
+    { "ring_reserve_seg",     test_bufring_reserve_seg     },
     { "chain_gather_iov",     test_bufchain_gather_iov     },
     { "bufpool_basic",        test_bufpool_basic           },
     { "bufpool_reuse",        test_bufpool_reuse           },

@@ -316,11 +316,19 @@ static _meta_inline size_t nodeContigWriteAvail(BufRingNode* node)
     return (node->head <= node->tail) ? node->buf->sz - node->tail : node->head - node->tail;
 }
 
-_Use_decl_annotations_
-void bufringReserve(BufRing* ring, size_t minbytes, uint8** ptr, size_t* len)
+// Shared body of bufringReserve() and bufringReserveSeg(). With `capped`, a tail segment larger
+// than `segsz` is passed over for a new one, which is what keeps a long-lived reservation from
+// holding on to a large segment.
+static void reserveCommon(BufRing* ring, size_t minbytes, size_t segsz, bool capped, uint8** ptr,
+                          size_t* len)
 {
     devAssertMsg(ring->reserved == 0, "Only one bufring reservation may be outstanding at a time");
     devAssert(minbytes > 0);
+
+    // An oversized segment holding no data has nothing to wait for; free it now rather than leave
+    // it in front of the new one.
+    if (capped && ring->total == 0 && ring->tail && ring->tail->buf->sz > segsz)
+        bufringTrim(ring);
 
     BufRingNode* node = ring->tail;
 
@@ -330,11 +338,11 @@ void bufringReserve(BufRing* ring, size_t minbytes, uint8** ptr, size_t* len)
     if (node && !node->full && node->head == node->tail && node->head != 0)
         node->head = node->tail = 0;
 
-    if (!node || nodeContigWriteAvail(node) < minbytes) {
+    if (!node || nodeContigWriteAvail(node) < minbytes || (capped && node->buf->sz > segsz)) {
         // Nothing contiguous enough at the tail. Allocate a segment big enough to hold the
         // whole reservation; any unused space in the old tail is simply left behind, exactly as
         // the normal write path leaves it.
-        node = appendNode(ring, max(ring->segsz, minbytes));
+        node = appendNode(ring, max(segsz, minbytes));
     }
 
     *len           = nodeContigWriteAvail(node);
@@ -342,6 +350,18 @@ void bufringReserve(BufRing* ring, size_t minbytes, uint8** ptr, size_t* len)
     ring->reserved = *len;
 
     devAssert(*len >= minbytes);
+}
+
+_Use_decl_annotations_
+void bufringReserve(BufRing* ring, size_t minbytes, uint8** ptr, size_t* len)
+{
+    reserveCommon(ring, minbytes, ring->segsz, false, ptr, len);
+}
+
+_Use_decl_annotations_
+void bufringReserveSeg(BufRing* ring, size_t minbytes, size_t segsz, uint8** ptr, size_t* len)
+{
+    reserveCommon(ring, minbytes, segsz, true, ptr, len);
 }
 
 _Use_decl_annotations_

@@ -133,6 +133,11 @@ abstract class NetSocket
     /// and corrupt the connection. Always false on readiness backends. Guarded by sendLock.
     bool sendPending;
 
+    // A completion backend's posted stream receive is (4 KB << recvScale) less 64 bytes. It grows
+    // while receives come back full and drops to the smallest on the first that does not, so a
+    // quiet connection holds only a small buffer. Unused on readiness backends.
+    uint8 recvScale;
+
     // Datagram receives a completion backend has posted that have not completed yet. The IOCP
     // backend tops this back up to its target on every completion, so a post that failed is made
     // good by the next one instead of leaving the socket one receive short for good. Unused on

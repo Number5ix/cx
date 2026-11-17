@@ -340,6 +340,29 @@ size_t bufringFeed(_Inout_ BufRing* ring, bufringFeedCB feed, size_t bytes, _Ino
 void bufringReserve(_Inout_ BufRing* ring, size_t minbytes,
                     _Outptr_result_buffer_(*len) uint8** ptr, _Out_ size_t* len);
 
+/// Reserve space for a write, with the segment size chosen for this reservation
+///
+/// Works like bufringReserve(), except that `segsz` stands in for the ring's own segment size, and
+/// the reservation is never placed in a segment larger than that. Use it for a reservation that may
+/// stay outstanding for a long time, such as an asynchronous read on a quiet connection: while it
+/// is outstanding the segment holding it cannot be freed, so a small reservation should not sit in
+/// a large segment. A larger segment left behind is freed once the data in it has been read.
+///
+/// @param ring Pointer to the ring buffer to reserve space in
+/// @param minbytes Minimum number of contiguous bytes required (must be nonzero)
+/// @param segsz Size of a new segment if one is needed, and the largest segment to reserve in
+/// @param ptr Receives a pointer to the reserved space
+/// @param len Receives the number of contiguous bytes actually available (>= minbytes)
+///
+/// Example:
+/// @code
+///   bufringReserveSeg(&ring, 1500, 4096 - 64, &ptr, &len);
+///   // ... asynchronous read of up to len bytes into ptr ...
+///   bufringCommit(&ring, got);
+/// @endcode
+void bufringReserveSeg(_Inout_ BufRing* ring, size_t minbytes, size_t segsz,
+                       _Outptr_result_buffer_(*len) uint8** ptr, _Out_ size_t* len);
+
 /// Commit part or all of an outstanding write reservation.
 ///
 /// Makes `bytes` of the reserved region visible as readable data in the ring and releases the

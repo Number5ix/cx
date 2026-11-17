@@ -4626,6 +4626,109 @@ static int test_nettest_iocp_stream(void)
     return ret;
 }
 
+typedef struct RecvSizeState {
+    size_t bytes;
+    uint32 events;
+} RecvSizeState;
+
+// One event per completed receive, since each completion is delivered as its own message.
+static void onRecvSize(NetEvent* ev)
+{
+    RecvSizeState* st = (RecvSizeState*)ev->ctx;
+    uint8 buf[16384];
+    size_t n;
+    st->events++;
+    while ((n = netsocketRecv(ev->socket, buf, sizeof(buf), NULL, 0)) > 0)
+        st->bytes += n;
+}
+
+// The posted stream receive grows while a bulk transfer keeps filling it, and once the connection
+// goes quiet the receive left posted sits in a small segment, with the large ones freed.
+static int test_nettest_iocp_stream_recvsize(void)
+{
+    enum { BULK = 1024 * 1024 };
+    int ret          = 0;
+    RecvSizeState st = { 0 };
+
+    static const NetHandlers handlers = { .recv = onRecvSize };
+
+    NetQueueConfig conf;
+    netqueuePresetClient(&conf);
+    NetQueue* q = netPlatformCreateIOCP(&conf);
+    if (!q)
+        return 0;   // IOCP unavailable (Wine): skip
+    netqueueSetHandlers(q, &handlers, &st);
+
+    SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    struct sockaddr_in la;
+    memset(&la, 0, sizeof(la));
+    la.sin_family      = AF_INET;
+    la.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    bind(listener, (struct sockaddr*)&la, sizeof(la));
+    listen(listener, 1);
+    int lalen = sizeof(la);
+    getsockname(listener, (struct sockaddr*)&la, &lalen);
+
+    SOCKET client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    connect(client, (struct sockaddr*)&la, sizeof(la));
+    SOCKET server = accept(listener, NULL, NULL);
+    closesocket(listener);
+    if (server == INVALID_SOCKET) {
+        closesocket(client);
+        objRelease(&q);
+        TEST_FAIL(1, _SL("accept failed"), stvNone);
+    }
+
+    NetSocket* ssock = NetSocket(netsocketwinWrap(server, NST_Stream, NS_Connected));
+    netqueueAddSocket(q, ssock);
+    BufRing* ring = &ssock->bufs.stream.recv;
+    if (!ring->tail || ring->tail->buf->sz > 4096)
+        TEST_FAILV(ret, 1, _SL("first receive posted in a ${uint}-byte segment"),
+                   stvar(size, ring->tail ? ring->tail->buf->sz : 0));
+
+    // Bulk: keep the client's send buffer full so receives keep coming back full.
+    u_long nb = 1;
+    ioctlsocket(client, FIONBIO, &nb);
+    static uint8 bulk[BULK];
+    size_t sent    = 0;
+    int64 deadline = clockTimer() + timeS(10);
+    while (st.bytes < BULK && clockTimer() < deadline) {
+        if (sent < BULK) {
+            int n = send(client, (const char*)bulk + sent, (int)min(BULK - sent, 65536), 0);
+            if (n > 0)
+                sent += n;
+        }
+        netqueueTick(q, timeMS(1));
+    }
+    if (st.bytes != BULK)
+        TEST_FAILV(ret, 1, _SL("received ${uint} of ${uint} bytes"), stvar(size, st.bytes),
+                   stvar(size, (size_t)BULK));
+    // Receives that stayed at 4 KB would take over 256 completions for this much.
+    if (st.events > BULK / 4032 / 2)
+        TEST_FAILV(ret, 1, _SL("${uint} receives for ${uint} bytes: the posted size did not grow"),
+                   stvar(uint32, st.events), stvar(size, (size_t)BULK));
+
+    // Quiet again: a small message comes back short, and the receive left posted is small.
+    size_t before = st.bytes;
+    send(client, "x", 1, 0);
+    deadline = clockTimer() + timeS(2);
+    while (st.bytes == before && clockTimer() < deadline)
+        netqueueTick(q, timeMS(10));
+    if (ssock->recvScale != 0)
+        TEST_FAILV(ret, 1, _SL("scale ${uint} after a short receive, expected 0"),
+                   stvar(uint32, ssock->recvScale));
+    if (ring->head != ring->tail || !ring->tail || ring->tail->buf->sz > 4096)
+        TEST_FAILV(ret, 1, _SL("quiet connection holds a ${uint}-byte segment"),
+                   stvar(size, ring->tail ? ring->tail->buf->sz : 0));
+
+    closesocket(client);
+    netsocketClose(ssock);
+    objRelease(&ssock);
+    netqueueShutdown(q, 0);
+    objRelease(&q);
+    return ret;
+}
+
 // Threaded datagram: the completion threads both ingest and dispatch, so deliveries arrive on a
 // worker with no tick(). The test synchronizes on a semaphore the handler posts.
 static int test_nettest_iocp_udp_threaded(void)
@@ -6413,7 +6516,8 @@ int test_nettest_grp_iocp_loopback(void)
 {
     TEST_CHAIN(test_nettest_iocp_udp, test_nettest_iocp_stream, test_nettest_iocp_udp_threaded,
                test_nettest_iocp_stream_threaded, test_nettest_iocp_stream_send,
-               test_nettest_iocp_udp_send, test_nettest_iocp_stream_backpressure);
+               test_nettest_iocp_udp_send, test_nettest_iocp_stream_backpressure,
+               test_nettest_iocp_stream_recvsize);
 }
 
 int test_nettest_grp_iocp_dgram(void)
@@ -6579,6 +6683,7 @@ testfunc nettest_funcs[] = {
     { "iocp_stream_send",           test_nettest_iocp_stream_send           },
     { "iocp_udp_send",              test_nettest_iocp_udp_send              },
     { "iocp_stream_backpressure",   test_nettest_iocp_stream_backpressure   },
+    { "iocp_stream_recvsize",       test_nettest_iocp_stream_recvsize       },
     { "iocp_connect",               test_nettest_iocp_connect               },
     { "iocp_connect_dns",           test_nettest_iocp_connect_dns           },
     { "iocp_connect_refused",       test_nettest_iocp_connect_refused       },

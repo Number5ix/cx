@@ -65,6 +65,12 @@ typedef enum {
 // the bound only has to cover a burst that arrived together.
 #define IOCP_RECV_RETRIES 8
 
+// A posted stream receive is IOCP_RECV_SIZE(scale) bytes, scale running from 0 (4 KB) to
+// IOCP_RECV_MAXSCALE (64 KB). The 64 bytes off each leave room for the buffer header and the
+// allocator's own, so each fits its allocator size class exactly.
+#define IOCP_RECV_SIZE(scale) (((size_t)4096 << (scale)) - 64)
+#define IOCP_RECV_MAXSCALE    4
+
 STR_CONST(kIocpFmtRecvDeaf,
           "Datagram socket has no receive outstanding after WSARecvFrom failed (error ${int}); it "
           "will not receive again");
@@ -421,10 +427,14 @@ static bool postRecv(_Inout_ NetQueueWinIOCP* self, _Inout_ NetSocket* sock)
 
     IocpOp* op = opAlloc(self, IocpRecv, sock);
 
+    // The receive stays posted for as long as the connection is quiet, and the ring segment it
+    // sits in cannot be freed meanwhile. So it goes in a segment sized to the current scale rather
+    // than the socket's full segment size: a quiet connection holds 4 KB, not 64.
     uint8* ptr;
     size_t len;
     withMutex (&sock->recvLock) {
-        bufringReserve(&sock->bufs.stream.recv, sock->mru ? sock->mru : 1500, &ptr, &len);
+        bufringReserveSeg(&sock->bufs.stream.recv, sock->mru ? sock->mru : 1500,
+                          IOCP_RECV_SIZE(sock->recvScale), &ptr, &len);
     }
     op->wsabuf.buf = (CHAR*)ptr;
     op->wsabuf.len = (ULONG)min(len, (size_t)ULONG_MAX);
@@ -734,6 +744,18 @@ static void handleCompletion(_Inout_ NetQueueWinIOCP* self, _Inout_ OVERLAPPED* 
     } else if (op->type == IocpRecv) {   // stream receive
         withMutex (&sock->recvLock) {
             bufringCommit(&sock->bufs.stream.recv, (ok && bytes > 0) ? (size_t)bytes : 0);
+        }
+
+        // A receive that came back full had more waiting behind it, so post a larger one next; one
+        // that came back short means the buffer was not what held things up. Only one receive is
+        // ever posted per stream socket, so nothing else touches recvScale meanwhile.
+        if (ok && bytes > 0) {
+            if (bytes >= op->wsabuf.len) {
+                if (sock->recvScale < IOCP_RECV_MAXSCALE)
+                    sock->recvScale++;
+            } else {
+                sock->recvScale = 0;
+            }
         }
 
         // A close on another thread can drop the socket's flow at any moment; resolve it once, with
