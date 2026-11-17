@@ -308,7 +308,7 @@ void NetSocket__dropFlow(_In_ NetSocket* self, _Inout_ NetFlow* flow)
         withWriteLock (&self->flowLock) {
             // Only remove the entry if it is still ours. A flow that was torn down and whose
             // peer has since come back will have a different object under the same key.
-            htelem e = htFind(self->flows, NetAddr, flow->peer, none, NULL);
+            htelem e = self->flows ? htFind(self->flows, NetAddr, flow->peer, none, NULL) : 0;
             if (e && (NetFlow*)hteVal(self->flows, object, e) == flow)
                 htRemove(&self->flows, NetAddr, flow->peer);
         }
@@ -418,6 +418,12 @@ _Ret_maybenull_ NetFlow* NetQueue__admitFlowObj(_In_ NetQueue* self, _Inout_ Net
     if (sock->type == NST_Datagram || sock->type == NST_Quic) {
         bool inserted = false;
         withWriteLock (&sock->flowLock) {
+            // A datagram socket's table is made with its first flow. Plenty never have one -- a
+            // socket behind a route hook, or one that only sends -- and even an empty table costs
+            // close to a kilobyte.
+            if (!sock->flows)
+                htInit(&sock->flows, NetAddr, object, 16);
+
             // The two table kinds differ only in their key: a datagram socket demultiplexes peers
             // by address, a QUIC socket demultiplexes one connection's streams by stream id.
             htelem e = sock->type == NST_Datagram
@@ -470,7 +476,7 @@ _Ret_maybenull_ NetFlow* NetQueue__findFlow(_In_ NetQueue* self, _Inout_ NetSock
 
     if (sock->type == NST_Datagram) {
         withReadLock (&sock->flowLock) {
-            htelem e = htFind(sock->flows, NetAddr, *peer, none, NULL);
+            htelem e = sock->flows ? htFind(sock->flows, NetAddr, *peer, none, NULL) : 0;
             if (e) {
                 NetFlow* cur = (NetFlow*)hteVal(sock->flows, object, e);
                 if (cur)

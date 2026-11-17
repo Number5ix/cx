@@ -158,7 +158,8 @@ abstract class NetSocket
     ///
     /// Holds strong references -- the socket owns its flows, and the flow's back-pointer to the
     /// socket is weak to avoid a reference cycle. Which key a socket's table uses is fixed by
-    /// `type`, so NetFlow::key is only meaningful on a QUIC socket's flows.
+    /// `type`, so NetFlow::key is only meaningful on a QUIC socket's flows. NULL on a datagram
+    /// socket until its first flow is created.
     [noinit] hashtable flows;
 
     RWLock flowLock;        ///< Protects the datagram flow table

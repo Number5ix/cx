@@ -178,7 +178,7 @@ void NetSocket__sendError(_In_ NetSocket* self, _In_opt_ NetQueue* q, NetErrorCo
         flow = _netSocketFlowRef(self);
     } else {
         withReadLock (&self->flowLock) {
-            htelem e = htFind(self->flows, NetAddr, *peer, none, NULL);
+            htelem e = self->flows ? htFind(self->flows, NetAddr, *peer, none, NULL) : 0;
             if (e) {
                 NetFlow* f = (NetFlow*)hteVal(self->flows, object, e);
                 if (f)

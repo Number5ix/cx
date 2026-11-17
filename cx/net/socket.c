@@ -30,7 +30,6 @@ _objinit_guaranteed bool NetSocket_init(_In_ NetSocket* self)
         // immediately, and the send path drains it on write-readiness. Whole NetMessages, each with
         // its own destination address.
         prqInitDynamic(&self->bufs.dgram.send, 32, 256, 0, PRQ_Grow_100, PRQ_Grow_50);
-        htInit(&self->flows, NetAddr, object, 64);
     } else if (self->type == NST_Quic) {
         // No platform factory ever assigns this one a handle, so hold the invariant here rather
         // than in each of them.

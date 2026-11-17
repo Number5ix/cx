@@ -649,7 +649,7 @@ void NetQueue__peerUnreachable(_In_ NetQueue* self, _Inout_ NetSocket* sock, _In
 
     NetFlow* flow = NULL;
     withReadLock (&sock->flowLock) {
-        htelem e = htFind(sock->flows, NetAddr, target, none, NULL);
+        htelem e = sock->flows ? htFind(sock->flows, NetAddr, target, none, NULL) : 0;
         if (e) {
             NetFlow* f = (NetFlow*)hteVal(sock->flows, object, e);
             if (f)
