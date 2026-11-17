@@ -466,6 +466,7 @@ static const testspec tests[] = {
     { "prqueue: Queue Growth", "prqtest", "grow" },
     { "prqueue: Garbage Collection", "prqtest", "gc" },
     { "prqueue: Dynamic MPMC", "prqtest", "mpmc" },
+    { "prqueue: Peek", "prqtest", "peek" },
     { "net: Address Parsing", "nettest", "addr" },
     { "netflow: Basic Flow Demux", "nettest", "flow_basic" },
     { "netflow: Handler Resolution", "nettest", "flow_handlers" },

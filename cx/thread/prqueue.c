@@ -690,7 +690,7 @@ void* prqPeek(PrQueue* prq, uint32 n)
     // skip over full segments if we're looking for something deeper in the queue
     if (dynamic) {
         PrqSegment* nextseg;
-        while (n > count && (nextseg = atomicLoad(ptr, &seg->nextseg, Acquire))) {
+        while (n >= count && (nextseg = atomicLoad(ptr, &seg->nextseg, Acquire))) {
             n -= count;
             atomicFetchAdd(int32, &nextseg->inuse, 1, AcqRel);
             atomicFetchAdd(int32, &seg->inuse, -1, Relaxed);
@@ -710,14 +710,15 @@ retry:
 
         for (slot = head; slot < head + seg->size; slot++) {
             void* ptr = atomicLoad(ptr, &seg->buffer[slot % seg->size], Relaxed);
-            if (ptr)
-                found++;
+            if (!ptr)
+                continue;
 
             if (found == n) {
                 // got it!
                 ret = ptr;
                 break;
             }
+            found++;
         }
 
         // If we didn't find it yet, another thread probably concurrently popped from the queue.

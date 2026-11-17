@@ -529,6 +529,7 @@ add_test(NAME "\"prqueue: Multithreaded Queue\"" COMMAND test_runner prqtest mt)
 add_test(NAME "\"prqueue: Queue Growth\"" COMMAND test_runner prqtest grow)
 add_test(NAME "\"prqueue: Garbage Collection\"" COMMAND test_runner prqtest gc)
 add_test(NAME "\"prqueue: Dynamic MPMC\"" COMMAND test_runner prqtest mpmc)
+add_test(NAME "\"prqueue: Peek\"" COMMAND test_runner prqtest peek)
 # Each entry below runs several subtests from nettest.c (grouped by feature area) in a single
 # process -- see the TEST_CHAIN groups at the bottom of that file. Run
 # `test_runner nettest <name>` directly to invoke one subtest in isolation.

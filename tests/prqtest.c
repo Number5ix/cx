@@ -499,11 +499,61 @@ static int test_prqtest_mpmc()
     return ret;
 }
 
+// prqPeek(n) is 0-based: n = 0 is the head, the item prqPop() would return next. Checked on a fixed
+// queue and on a dynamic one that has grown across several segments.
+static int test_prqtest_peek()
+{
+    int ret = 0;
+    int testdata[40];
+    for (int i = 0; i < 40; i++)
+        testdata[i] = i;
+
+    PrQueue fixed;
+    prqInitFixed(&fixed, 16);
+    if (prqPeek(&fixed, 0))
+        TEST_FAILV(ret, 1, _SL("peek of an empty queue returned an item"), stvNone);
+    for (int i = 0; i < 5; i++)
+        prqPush(&fixed, &testdata[i]);
+    for (int i = 0; i < 5; i++) {
+        int* p = prqPeek(&fixed, i);
+        if (!p || *p != i)
+            TEST_FAILV(ret, 1, _SL("fixed queue: peek ${int} returned ${int}"), stvar(int32, i),
+                       stvar(int32, p ? *p : -1));
+    }
+    if (prqPeek(&fixed, 5))
+        TEST_FAILV(ret, 1, _SL("fixed queue: peek past the end returned an item"), stvNone);
+    prqPop(&fixed);
+    int* head = prqPeek(&fixed, 0);
+    if (!head || *head != 1)
+        TEST_FAILV(ret, 1, _SL("fixed queue: head after a pop is ${int}, expected 1"),
+                   stvar(int32, head ? *head : -1));
+    while (prqPop(&fixed))
+        ;
+    prqDestroy(&fixed);
+
+    PrQueue dyn;
+    prqInitDynamic(&dyn, 4, 8, 64, PRQ_Grow_100, PRQ_Grow_None);
+    for (int i = 0; i < 40; i++)
+        prqPush(&dyn, &testdata[i]);
+    for (int i = 0; i < 40; i++) {
+        int* p = prqPeek(&dyn, i);
+        if (!p || *p != i)
+            TEST_FAILV(ret, 1, _SL("dynamic queue: peek ${int} returned ${int}"), stvar(int32, i),
+                       stvar(int32, p ? *p : -1));
+    }
+    while (prqPop(&dyn))
+        ;
+    prqDestroy(&dyn);
+
+    return ret;
+}
+
 testfunc prqtest_funcs[] = {
     { "basic", test_prqtest_basic },
     { "mt", test_prqtest_mt },
     { "grow", test_prqtest_grow },
     { "gc", test_prqtest_gc },
     { "mpmc", test_prqtest_mpmc },
+    { "peek", test_prqtest_peek },
     { 0, 0 }
 };
