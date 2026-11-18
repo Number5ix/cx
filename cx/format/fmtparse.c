@@ -47,6 +47,7 @@ retry_start:
 retry_end:
     ctx->vend = strFind(ctx->fmt, ctx->vend, kVarEnd);
     if (ctx->vend == -1) {   // broken format string
+        ctx->vend = ctx->flen;
         return false;
     }
 
@@ -190,7 +191,8 @@ bool _fmtParseVar(FMTContext* ctx)
     if (defstart > 0) {
         strSubStr(&ctx->v.def, ctx->v.var, defstart, len);
     }
-    bool ret = !strEmpty(ctx->v.def);
+    ctx->hasdef = defstart > 0;
+    bool ret    = ctx->hasdef;
 
     // extract the key, if this is a keyed lookup
     if (keystart > 0) {

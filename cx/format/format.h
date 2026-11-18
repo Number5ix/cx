@@ -70,6 +70,7 @@
 ///   - `name` - Transforms string to all lowercase, capitalizes first character (ASCII only)
 ///   - `empty` - Replaces empty strings with the default if set
 ///   - `null` - Replaces null strings with the default if set
+/// - **bool** - Outputs `true` or `false`. No type-specific fmtopts.
 /// - **int** - Supported fmtopts:
 ///   - `min:#` - Minimum number of digits to output. Different from width in that this will not
 ///   truncate, and always 0-pads
@@ -161,12 +162,14 @@
 ///
 /// @section string_format_default Default values
 ///
-/// If there is an error such as not being able to find an argument of the appropriate
-/// type, the normal behavior is for strFormat to return false and produce no output.
-/// However, if the variable contains a `;default` section, instead of failing the entire
-/// format operation, the literal text of 'default' (anything after the semicolon) will
-/// be inserted in place of the variable instead. A `}` character may be escaped with `` `} ``
-/// in this section.
+/// If a variable can't be formatted -- it is malformed, or no argument of the right type
+/// is found -- it is left blank and strFormat returns false. The rest of the output is
+/// still produced.
+///
+/// If the variable contains a `;default` section, the literal text of 'default' (anything
+/// after the semicolon) is inserted in its place instead, and the variable does not cause
+/// strFormat to return false. An empty default (`${int;}`) leaves the variable blank
+/// without failing. A `}` character may be escaped with `` `} `` in this section.
 
 CX_C bool _strFormat(_Inout_ string* out, _In_ strref fmt, int n, _In_ stvar* args);
 
@@ -180,7 +183,7 @@ CX_C bool _strFormat(_Inout_ string* out, _In_ strref fmt, int n, _In_ stvar* ar
 /// @param out Pointer to string to receive the formatted result
 /// @param fmt Format string with ${type} variable sequences
 /// @param ... Variable arguments, each wrapped with stvar(type, value)
-/// @return true on success, false if a required variable is missing or type mismatch occurs
+/// @return true on success, false if any variable without a default could not be formatted
 ///
 /// Example:
 /// @code

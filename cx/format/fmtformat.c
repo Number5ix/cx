@@ -52,6 +52,12 @@ int32 _fmtFindKeyed(FMTContext* ctx, strref key)
     return found;
 }
 
+static bool fmtIdMatches(uint32 id, uint32 typeid, uint32 typemask)
+{
+    // bool's id falls inside the uint class, but only ${bool} may consume one
+    return (id & typemask) == typeid && (id != stTypeId(bool) || typeid == stTypeId(bool));
+}
+
 // Does this argument satisfy the placeholder? When the placeholder subscripts a container
 // the check applies to the container's element/value type, not to the argument itself.
 // Shared by the positional search (where it selects which instance to take) and the keyed
@@ -62,14 +68,14 @@ static bool fmtArgMatches(_In_ stvar* arg, bool isarray, bool ishash, uint32 typ
     // use ID for these to also catch parameterized types that match the base type
     if (isarray) {
         return stvarTypeId(arg) == stTypeId(sarray) &&
-               ((saElemType(arg->data.st_sarray))->id & typemask) == typeid;
+               fmtIdMatches(saElemType(arg->data.st_sarray)->id, typeid, typemask);
     }
     if (ishash) {
         return stvarTypeId(arg) == stTypeId(hashtable) &&
                (htKeyType(arg->data.st_hashtable))->id == stTypeId(string) &&
-               ((htValType(arg->data.st_hashtable))->id & typemask) == typeid;
+               fmtIdMatches(htValType(arg->data.st_hashtable)->id, typeid, typemask);
     }
-    return (stvarTypeId(arg) & typemask) == typeid;
+    return fmtIdMatches(stvarTypeId(arg), typeid, typemask);
 }
 
 // Point ctx->v at the value the placeholder names, applying container subscripting if it
@@ -133,7 +139,7 @@ int _fmtTypeFromKey(FMTContext* ctx, strref key, bool isarray, bool ishash)
 _Use_decl_annotations_
 bool _fmtFindData(FMTContext* ctx)
 {
-    bool ret = !strEmpty(ctx->v.def);
+    bool ret = ctx->hasdef;
 
     if (ctx->v.vtype == -1)
         return ret;

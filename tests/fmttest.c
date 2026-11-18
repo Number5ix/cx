@@ -388,52 +388,77 @@ static int test_default()
     if (!strEq(res, _S"This is a 1702 specified default 0 test"))
         TEST_FAIL(1, _SL("assertion failed: string mismatch: ${string} != ${string}"), stvar(strref, res), stvar(strref, _S"This is a 1702 specified default 0 test"));
 
+    // an empty default leaves the variable blank without failing
+    if (!strFormat(&res, _S"[${int;}] [${string(4);}]", stvNone))
+        TEST_FAIL(1, _SL("strFormat with empty defaults returned false: '${string}'"), stvar(strref, res));
+    if (!strEq(res, _S"[] [    ]"))
+        TEST_FAIL(1, _SL("empty defaults: '${string}' != '[] [    ]'"), stvar(strref, res));
+
     strDestroy(&res);
     return 0;
 }
 
+// Each case formats against (5, 10), must return false, and must leave the failed
+// variable blank while keeping the rest of the output.
 static int test_error()
 {
+    static const struct {
+        const char* fmt;
+        const char* want;
+    } cases[] = {
+        { "This ${int} ${int} ${int} test should fail", "This 5 10  test should fail" },
+        { "This ${int[0]} test should fail", "This  test should fail" },
+        { "This ${string} test should fail", "This  test should fail" },
+        { "This ${int[hash]} test should fail", "This  test should fail" },
+        { "This ${bogus} test should fail", "This  test should fail" },
+        { "This ${int(asdf} test should fail", "This  test should fail" },
+        { "This ${int test should fail", "This " },
+        { "${int} and ${int} then ${float;n/a} and ${int}", "5 and 10 then n/a and " },
+    };
     string res = 0;
+    int ret    = 0;
 
-    strDup(&res, _S"canary");
+    for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++) {
+        strDup(&res, _S"canary");
+        if (strFormat(&res, (strref)cases[i].fmt, stvar(int32, 5), stvar(int32, 10)) != false)
+            TEST_FAILV(ret, 1, _SL("'${string}' returned true"), stvar(strref, (strref)cases[i].fmt));
+        if (!strEq(res, (strref)cases[i].want))
+            TEST_FAILV(ret, 1, _SL("'${string}': got '${string}', want '${string}'"),
+                       stvar(strref, (strref)cases[i].fmt), stvar(strref, res),
+                       stvar(strref, (strref)cases[i].want));
+    }
 
-    if (strFormat(&res, _S"This ${int} ${int} ${int} test should fail",
-        stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int} ${int} ${int} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
+    strDestroy(&res);
+    return ret;
+}
 
-    if (strFormat(&res, _S"This ${int[0]} test should fail",
-                  stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int[0]} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
+static int test_bool()
+{
+    string res = 0;
+    sa_bool flags;
+    saInit(&flags, bool, 4);
+    saPush(&flags, bool, false);
+    saPush(&flags, bool, true);
 
-    if (strFormat(&res, _S"This ${string} test should fail",
-                  stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${string} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
+    strFormat(&res, _S"${bool} ${bool} ${bool2(upper)} [${bool1(7,right)}]", stvar(bool, true),
+              stvar(bool, false));
+    if (!strEq(res, _S"true false FALSE [   true]"))
+        TEST_FAIL(1, _SL("bool: '${string}' != 'true false FALSE [   true]'"), stvar(strref, res));
 
-    if (strFormat(&res, _S"This ${int[hash]} test should fail",
-                  stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int[hash]} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
+    // a bool never satisfies ${uint}, so the two keep separate positions
+    if (!strFormat(&res, _S"${bool} ${uint} ${bool}", stvar(bool, true), stvar(uint32, 7),
+                   stvar(bool, false)) ||
+        !strEq(res, _S"true 7 false"))
+        TEST_FAIL(1, _SL("bool/uint: '${string}' != 'true 7 false'"), stvar(strref, res));
+    if (strFormat(&res, _S"${uint}", stvar(bool, true)))
+        TEST_FAIL(1, _SL("${uint} matched a bool: '${string}'"), stvar(strref, res));
 
-    if (strFormat(&res, _S"This ${int test should fail",
-                  stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
+    if (!strFormat(&res, _S"${:on} ${bool:off} ${bool[1]} ${:list[0]}", stvark(on, bool, true),
+                   stvark(off, bool, false), stvar(sarray, flags), stvark(list, sarray, flags)) ||
+        !strEq(res, _S"true false true false"))
+        TEST_FAIL(1, _SL("keyed/array bool: '${string}' != 'true false true false'"), stvar(strref, res));
 
-    if (strFormat(&res, _S"This ${int(asdf} test should fail",
-                  stvar(int32, 5), stvar(int32, 10)) != false)
-        TEST_FAIL(1, _SL("assertion failed: strFormat(&res, _S\"This ${int(asdf} test should fail\", stvar(int32, 5), stvar(int32, 10)) != false"), stvNone);
-    if (!strEmpty(res))
-        TEST_FAIL(1, _SL("assertion failed: !strEmpty(res)"), stvNone);
-
+    saDestroy(&flags);
     strDestroy(&res);
     return 0;
 }
@@ -665,6 +690,7 @@ testfunc fmttest_funcs[] = {
     { "int", test_int },
     { "float", test_float },
     { "string", test_string },
+    { "bool", test_bool },
     { "ptr", test_ptr },
     { "suid", test_suid },
     { "object", test_object },

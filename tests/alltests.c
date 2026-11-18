@@ -62,6 +62,7 @@ static const testspec tests[] = {
     { "format: Objects", "fmttest", "object" },
     { "format: Pointers", "fmttest", "ptr" },
     { "format: Strings", "fmttest", "string" },
+    { "format: Booleans", "fmttest", "bool" },
     { "format: SUID", "fmttest", "suid" },
     { "format: Array indexing", "fmttest", "array" },
     { "format: Hashtable lookup", "fmttest", "hash" },

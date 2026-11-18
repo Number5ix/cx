@@ -1,4 +1,5 @@
 set(FORMAT_SRCS
+    format/fmtbool.c
     format/fmtfloat.c
     format/fmtformat.c
     format/fmtint.c

@@ -4429,7 +4429,7 @@ UI_TEST(layoutrealize)
 
     CxUiTestCanvasInfo info;
     if (!cxuiTestCanvasInfo(a, &info) || !rectIs(info.bounds, 0, 0, 100, 110) || CxUiWidget(b)->peer)
-        TEST_FAIL(1, _SL("after showing: a at ${int},${int} ${int}x${int}; b has a peer: ${int}"), RECT_ARGS(info.bounds),
+        TEST_FAIL(1, _SL("after showing: a at ${int},${int} ${int}x${int}; b has a peer: ${bool}"), RECT_ARGS(info.bounds),
                   stvar(bool, CxUiWidget(b)->peer != NULL));
 
     cxuiWidgetSetVisible(hidden, true);
@@ -4447,7 +4447,7 @@ UI_TEST(layoutrealize)
     cxuiFlush();
     cxuiTestCanvasInfo(a, &info);
     if (!cxuiTestCanvasInfo(b, &binfo) || binfo.visible || !rectIs(info.bounds, 0, 0, 100, 110))
-        TEST_FAIL(1, _SL("hiding the box again: b visible ${int}, a at ${int},${int} ${int}x${int}"),
+        TEST_FAIL(1, _SL("hiding the box again: b visible ${bool}, a at ${int},${int} ${int}x${int}"),
                   stvar(bool, binfo.visible), RECT_ARGS(info.bounds));
 
     CxUiCanvas* c = put(col, cxuiCanvasCreate(NULL));
@@ -9408,7 +9408,7 @@ UI_TEST(gridselect)
     gridClickAt(g, CXUI_BTN_Left, 0, 50, ROW_Y(2));
     CHECK_SEL("a click", g, 2, 1);
     if (cxuiGridFocusRow(g) != 2 || log.changes != 1 || !gridFocused(g))
-        TEST_FAIL(1, _SL("a click: focus row ${int}, ${int} changes, focused ${int}"), stvar(int64, cxuiGridFocusRow(g)),
+        TEST_FAIL(1, _SL("a click: focus row ${int}, ${int} changes, focused ${bool}"), stvar(int64, cxuiGridFocusRow(g)),
                   stvar(int32, log.changes), stvar(bool, gridFocused(g)));
     gridRepaint(g, w);
     const CxUiTestDrawOp* t2 = gridText(g, _S"row 2");
@@ -9448,7 +9448,7 @@ UI_TEST(gridselect)
     CHECK_SEL("a right click", g, 7, 1);
     if (log.contexts != 1 || log.item != 7 || !log.onItem || log.header || log.column != 1 || log.x != 220 ||
         log.y != ROW_Y(7))
-        TEST_FAIL(1, _SL("a right click: ${int} menus, row ${int} (on it ${int}), column ${int}, at ${int},${int}"),
+        TEST_FAIL(1, _SL("a right click: ${int} menus, row ${int} (on it ${bool}), column ${int}, at ${int},${int}"),
                   stvar(int32, log.contexts), stvar(int64, log.item), stvar(bool, log.onItem), stvar(int32, log.column),
                   stvar(int32, log.x), stvar(int32, log.y));
     cxuiGridSetSelected(g, 7, 3, true);
@@ -9460,7 +9460,7 @@ UI_TEST(gridselect)
                   stvar(int32, log.contexts), stvar(int64, log.item), stvar(int32, log.changes - changes));
     gridClickAt(g, CXUI_BTN_Right, 0, 50, headH / 2);
     if (log.contexts != 3 || log.onItem || !log.header || log.column != 0)
-        TEST_FAIL(1, _SL("a right click on a header: on a row ${int}, header ${int}, column ${int}"),
+        TEST_FAIL(1, _SL("a right click on a header: on a row ${bool}, header ${bool}, column ${int}"),
                   stvar(bool, log.onItem), stvar(bool, log.header), stvar(int32, log.column));
 #if defined(_PLATFORM_MACOS)
     // A Control-click is a right click on the Mac.
@@ -9543,7 +9543,7 @@ UI_TEST(griddrag)
     cxuiListStoreInsert(store, 3, _S"new", _S"0 KB");
     CHECK_SEL("a row inserted into the selection", g, 2, 3);
     if (cxuiGridIsSelected(g, 3) || !cxuiGridIsSelected(g, 5) || cxuiGridFocusRow(g) != 11)
-        TEST_FAIL(1, _SL("a row inserted: the new row selected ${int}, focus row ${int}"), stvar(bool, cxuiGridIsSelected(g, 3)),
+        TEST_FAIL(1, _SL("a row inserted: the new row selected ${bool}, focus row ${int}"), stvar(bool, cxuiGridIsSelected(g, 3)),
                   stvar(int64, cxuiGridFocusRow(g)));
     cxuiListStoreRemove(store, 3, 1);
     CHECK_SEL("the row removed again", g, 2, 3);
@@ -9738,7 +9738,7 @@ UI_TEST(gridheader)
 
     gridClickAt(g, L, 0, 50, hy);
     if (log.sorts != 1 || log.column != 0 || log.descending || cxuiGridSortColumn(g) != 0 || cxuiGridSortDescending(g))
-        TEST_FAIL(1, _SL("a header click: ${int} sorts, column ${int}, descending ${int}"), stvar(int32, log.sorts),
+        TEST_FAIL(1, _SL("a header click: ${int} sorts, column ${int}, descending ${bool}"), stvar(int32, log.sorts),
                   stvar(int32, log.column), stvar(bool, log.descending));
     gridRepaint(g, w);
     // The arrow's widest line, at its bottom: 8 wide, 6 in from the column's right edge
@@ -9755,7 +9755,7 @@ UI_TEST(gridheader)
         TEST_FAIL(1, _SL("no upward sort arrow: its base at ${int}"), stvar(int32, arrow ? arrow->r.y : -1));
     gridClickAt(g, L, 0, 50, hy);
     if (log.sorts != 2 || !log.descending || !cxuiGridSortDescending(g))
-        TEST_FAIL(1, _SL("a second click: ${int} sorts, descending ${int}"), stvar(int32, log.sorts), stvar(bool, log.descending));
+        TEST_FAIL(1, _SL("a second click: ${int} sorts, descending ${bool}"), stvar(int32, log.sorts), stvar(bool, log.descending));
 
     // Let go over another column, or a click on one that doesn't sort: no sort
     gridPtr(g, CXUI_TESTPTR_Move, 0, 0, 0, 40, hy);
@@ -10207,7 +10207,7 @@ UI_TEST(treeinput)
     gridClickAt(g, CXUI_BTN_Left, 0, 100, ROW_Y(3));
     gridClickAt(g, CXUI_BTN_Left, 0, 100, ROW_Y(3));
     if (log.activates != 1 || log.item != b || !cxuiGridIsExpanded(g, b))
-        TEST_FAIL(1, _SL("a double click: ${int} activations, b open ${int}"), stvar(int32, log.activates),
+        TEST_FAIL(1, _SL("a double click: ${int} activations, b open ${bool}"), stvar(int32, log.activates),
                   stvar(bool, cxuiGridIsExpanded(g, b)));
     log.takeActivate = true;
     pressKey(body, CXUI_KEY_Enter, 0);
@@ -10303,7 +10303,7 @@ UI_TEST(treenotify)
 
     cxuiGridReset(g);
     if (!cxuiGridIsExpanded(g, a) || cxuiGridRowCount(g) != 3 || cxuiGridNodeAt(g, 1) != a1 || cxuiGridSelectedCount(g) != 0)
-        TEST_FAIL(1, _SL("a reset: a open ${int}, ${int} rows"), stvar(bool, cxuiGridIsExpanded(g, a)),
+        TEST_FAIL(1, _SL("a reset: a open ${bool}, ${int} rows"), stvar(bool, cxuiGridIsExpanded(g, a)),
                   stvar(int64, cxuiGridRowCount(g)));
     cxuiTreeStoreClear(t);
     if (cxuiGridRowCount(g) != 0 || cxuiGridIsExpanded(g, a))
@@ -10708,7 +10708,7 @@ UI_TEST(gridedit)
     cxuiTestTextInfoDestroy(&ti);
     CxUiTestPanelInfo pi;
     if (!cxuiTestPanelInfo(CxUiWidget(g->_editFrame), &pi) || !pi.raised || !rectIs(pi.bounds, 3, ROW_TOP(3), nameW - 4, rowH))
-        TEST_FAIL(1, _SL("the editor is at ${int},${int} ${int}x${int}, raised ${int}"), RECT_ARGS(pi.bounds),
+        TEST_FAIL(1, _SL("the editor is at ${int},${int} ${int}x${int}, raised ${bool}"), RECT_ARGS(pi.bounds),
                   stvar(bool, pi.raised));
     if (!cxuiIsTextInput(ed) || !cxuiIsTextInput(other) || cxuiIsTextInput(g) || cxuiIsTextInput(body) ||
         cxuiIsTextInput((CxUiWidget*)NULL))
@@ -10853,7 +10853,7 @@ UI_TEST(gridedit)
     int32 events = editEvents(&log);
     cxuiListStoreRemove(store, 5, 1);
     if (g->_editFrame || editEvents(&log) != events || !gridFocused(g))
-        TEST_FAIL(1, _SL("removing the edited row: still open ${int}, ${int} events"), stvar(bool, g->_editFrame != NULL),
+        TEST_FAIL(1, _SL("removing the edited row: still open ${bool}, ${int} events"), stvar(bool, g->_editFrame != NULL),
                   stvar(int32, editEvents(&log) - events));
     cxuiGridEdit(g, 3, 0);
     cxuiGridReset(g);

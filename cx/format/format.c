@@ -3,6 +3,7 @@
 
 // literal strings with embedded length for maximum efficiency
 STR_CONSTR(kFmtString, "string");
+STR_CONSTR(kFmtBool, "bool");
 STR_CONSTR(kFmtInt, "int");
 STR_CONSTR(kFmtUint, "uint");
 STR_CONSTR(kFmtFloat, "float");
@@ -10,11 +11,13 @@ STR_CONSTR(kFmtPtr, "ptr");
 STR_CONSTR(kFmtSuid, "suid");
 STR_CONSTR(kFmtObject, "object");
 
-strref _fmtTypeNames[FMT_count] = { _SR(kFmtString), _SR(kFmtInt),  _SR(kFmtUint),  _SR(kFmtFloat),
-                                    _SR(kFmtPtr),    _SR(kFmtSuid), _SR(kFmtObject) };
+strref _fmtTypeNames[FMT_count] = { _SR(kFmtString), _SR(kFmtBool), _SR(kFmtInt),
+                                    _SR(kFmtUint),   _SR(kFmtFloat), _SR(kFmtPtr),
+                                    _SR(kFmtSuid),   _SR(kFmtObject) };
 
 uint32 _fmtTypeIdMask[FMT_count][2] = {
     { stTypeId(string),           0xffffffff }, // string
+    { stTypeId(bool),             0xffffffff }, // bool
     { STCLASS_BASIC | STST_INT,   0xffffff00 }, // int
     { STCLASS_BASIC | STST_UINT,  0xffffff00 }, // uint
     { STCLASS_BASIC | STST_FLOAT, 0xffffff00 }, // float
@@ -25,6 +28,7 @@ uint32 _fmtTypeIdMask[FMT_count][2] = {
 
 bool (*_fmtTypeParseOpt[FMT_count])(FMTVar* v, strref opt) = {
     _fmtParseStringOpt,
+    0,   // bool
     _fmtParseIntOpt,
     _fmtParseIntOpt,
     _fmtParseFloatOpt,
@@ -35,6 +39,7 @@ bool (*_fmtTypeParseOpt[FMT_count])(FMTVar* v, strref opt) = {
 
 bool (*_fmtTypeParseFinalize[FMT_count])(FMTVar* v) = {
     0,   // string
+    0,   // bool
     _fmtParseIntFinalize,
     _fmtParseIntFinalize,
     _fmtParseFloatFinalize,
@@ -44,7 +49,7 @@ bool (*_fmtTypeParseFinalize[FMT_count])(FMTVar* v) = {
 };
 
 bool (*_fmtTypeFormat[FMT_count])(FMTVar* v, string* out) = {
-    _fmtString, _fmtInt, _fmtInt, _fmtFloat, _fmtPtr, _fmtSUID, _fmtObject,
+    _fmtString, _fmtBool, _fmtInt, _fmtInt, _fmtFloat, _fmtPtr, _fmtSUID, _fmtObject,
 };
 
 static void fmtVarReset(FMTVar* v)
@@ -88,7 +93,7 @@ bool _strFormat(string* out, strref fmt, int n, stvar* args)
     _strReset(out, fmtlen + (fmtlen >> 3));
 
     FMTContext ctx = { 0 };
-    bool ret       = false;
+    bool ret       = true;
     ctx.flen       = strLen(fmt);
     ctx.nargs      = n;
     ctx.args       = args;
@@ -137,18 +142,17 @@ bool _strFormat(string* out, strref fmt, int n, stvar* args)
     // main format string scan loop
     for (;;) {
         fmtVarReset(&ctx.v);
-        if (!_fmtExtractVar(&ctx))
-            goto out;
+        ctx.hasdef = false;
+        if (!_fmtExtractVar(&ctx)) {
+            ret = false;   // unterminated variable swallows the rest of the string
+            break;
+        }
         if (strEmpty(ctx.v.var))
             break;
 
-        if (!_fmtParseVar(&ctx))
-            goto out;
+        if (!_fmtParseVar(&ctx) || !_fmtFindData(&ctx))
+            ret = false;
 
-        if (!_fmtFindData(&ctx))
-            goto out;
-
-        // everything checks out, so do it!
         _fmtFormat(&ctx);
     }
 
@@ -158,12 +162,6 @@ bool _strFormat(string* out, strref fmt, int n, stvar* args)
         strAppend(ctx.dest, ctx.v.tmp);
     }
 
-    ret = true;
-
-out:
-    if (!ret) {
-        strClear(ctx.dest);
-    }
     fmtVarDestroy(&ctx.v);
     strDestroy(&ctx.tmp);
     return ret;

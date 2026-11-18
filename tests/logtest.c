@@ -1030,13 +1030,12 @@ static int test_log_ctx()
         }
     }
 
-    // Outside any context the key resolves to nothing, and an unmatched placeholder fails the
-    // whole format -- the ordinary strFormat contract, which context fields do not get an
-    // exemption from. A template that expects to render either way says so with a default.
+    // Outside any context the key resolves to nothing, so the placeholder is left blank, the
+    // same as for any unmatched strFormat variable. A default supplies replacement text.
     logFmt(Info, _S"req=${string:reqid}", stvNone);
     logFlush();
-    if (!strEmpty(cd.msg))
-        TEST_FAILV_LOG(ret, 1, _SL("cd.msg=${string} (expected empty)"), stvar(strref, cd.msg));
+    if (!strEq(cd.msg, _S"req="))
+        TEST_FAILV_LOG(ret, 1, _SL("strEq mismatch: cd.msg=${string} vs 'req='"), stvar(strref, cd.msg));
 
     logFmt(Info, _S"req=${string:reqid;none}", stvNone);
     logFlush();

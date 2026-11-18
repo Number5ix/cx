@@ -6,6 +6,7 @@
 
 enum FORMAT_TYPES {
     FMT_string,
+    FMT_bool,
     FMT_int,
     FMT_uint,
     FMT_float,
@@ -25,6 +26,7 @@ typedef struct FMTContext {
     stvar* args;
     int32 startarg[FMT_count];   // where to start searching for each type
     int32 arrayidx;              // arrary index counter
+    bool hasdef;                 // current variable has a ;default, even an empty one
 
     string tmp;                  // temporary storage for high-level operations
     string* dest;                // output string so far
@@ -56,6 +58,7 @@ int _fmtTypeFromKey(_In_ FMTContext* ctx, _In_ strref key, bool isarray, bool is
 // type-specific formatters
 bool _fmtParseStringOpt(_Inout_ FMTVar* v, _In_ strref opt);
 bool _fmtString(_Inout_ FMTVar* v, _Inout_ string* out);
+bool _fmtBool(_Inout_ FMTVar* v, _Inout_ string* out);
 bool _fmtParseIntOpt(_Inout_ FMTVar* v, _In_ strref opt);
 bool _fmtParseIntFinalize(_Inout_ FMTVar* v);
 bool _fmtInt(_Inout_ FMTVar* v, _Inout_ string* out);
