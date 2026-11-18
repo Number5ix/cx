@@ -1507,6 +1507,21 @@ static bool uiTxSettled(stvlist* cvars, stvlist* args)
            uiTxShown(t->other, true, NULL, NULL) && cxuiTestBounds(CxUiWidget(t->other), &b) && b.h > 0;
 }
 
+// Text from a C string, which the field copies, set over the text it has
+static bool uiTxSetFromC(stvlist* cvars, stvlist* args)
+{
+    unused_noeval(args);
+    UiTextTest* t = stvlAtPtr(cvars, 0);
+    char text[]   = "haystack";
+    CxUiTestTextInfo ti;
+    cxuiTextFieldSetText(t->find, (strref)text);
+    bool ok = cxuiTestTextInfo(t->find, &ti) && strEq(ti.text, _S"haystack") &&
+              strEq(cxuiTextFieldText(t->find), _S"haystack");
+    cxuiTestTextInfoDestroy(&ti);
+    cxuiTextFieldSetText(t->find, _S"needle");
+    return ok;
+}
+
 static bool uiTxFocus(stvlist* cvars, stvlist* args)
 {
     unused_noeval(args);
@@ -1657,6 +1672,7 @@ static int test_cxuid_text(void)
     string cmdText = 0;
     cxuiCallSync(closureCreate(uiTxBuild, stvar(ptr, &t)));
     bool settled = uiPollSync(uiTxSettled, &t, timeS(5));
+    bool fromC   = settled && cxuiCallSync(closureCreate(uiTxSetFromC, stvar(ptr, &t)));
     bool focused = settled && uiTxFocusSync(&t, t.cmd);
     // A display without a keyboard never activates the window, so nothing in it can have focus.
     bool noKeyboard = settled && !focused && !cxuiCallSync(closureCreate(uiTxActive, stvar(ptr, &t)));
@@ -1740,6 +1756,10 @@ static int test_cxuid_text(void)
     objRelease(&t.other);
     objRelease(&t.w);
     TEST_INFO(_SL("keys through the platform: ${int}"), stvar(int32, t.native));
+    if (settled && !fromC) {
+        strDestroy(&cmdText);
+        TEST_FAIL(1, _SL("text set from a C string over the field's own isn't what it shows"), stvNone);
+    }
     if (noKeyboard) {
         strDestroy(&cmdText);
         TEST_SKIP(_SL("the window never became active; only the fields' creation was checked"), stvNone);

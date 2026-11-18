@@ -145,7 +145,7 @@ static void cssRebuild(void)
     strDestroy(&rule);
 }
 
-// Text set from code is reported too, and the core ignores it: the field has it already.
+// Edits, not text set from code, which _cxuiGtk4TextSetText keeps from being reported
 static void onChanged(GtkEditable* e, gpointer ud)
 {
     unused_noeval(e);
@@ -321,13 +321,20 @@ CxUiSize _cxuiGtk4TextAreaMeasure(CxUiTextArea* ta, CxUiFont* f, int32 columns, 
                        (int32)ceilf(lines * m.height / s) + 2 * AREA_MARGIN_Y + chrome };
 }
 
+// Without the change reports: GTK reports deleting the old text before it inserts the new, and
+// taking that report would free `text`, the field's own, before GTK has copied it.
 void _cxuiGtk4TextSetText(CxUiPeer* p, strref text)
 {
     Gtk4Text* t = (Gtk4Text*)p;
-    if (t->area)
+    if (t->area) {
+        g_signal_handlers_block_by_func(t->buffer, areaChanged, t);
         gtk_text_buffer_set_text(t->buffer, strEmpty(text) ? "" : strC(text), -1);
-    else
+        g_signal_handlers_unblock_by_func(t->buffer, areaChanged, t);
+    } else {
+        g_signal_handlers_block_by_func(t->widget, onChanged, t);
         gtk_editable_set_text(editable(t), strEmpty(text) ? "" : strC(text));
+        g_signal_handlers_unblock_by_func(t->widget, onChanged, t);
+    }
 }
 
 // The selection is kept, as appending moves neither of its ends.

@@ -5550,6 +5550,11 @@ UI_TEST(textbasic)
     cxuiTextFieldSetCaret(t, 0);
     cxuiTextFieldSetText(t, _S"abc");
     CHECK_TEXT("set from code", t, _S"abc");
+    // From a C string, which the field copies, over the text it has
+    char typed[] = "xyz";
+    cxuiTextFieldSetText(t, (strref)typed);
+    CHECK_TEXT("set from a C string", t, _S"xyz");
+    cxuiTextFieldSetText(t, _S"abc");
     if (log.changes != 0 || cxuiTextFieldCaret(t) != 3)
         TEST_FAIL(1, _SL("setting text: ${int} changes, caret ${int}"), stvar(int32, log.changes),
                   stvar(int32, cxuiTextFieldCaret(t)));
