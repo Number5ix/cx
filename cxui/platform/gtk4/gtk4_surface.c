@@ -8,6 +8,7 @@
 #endif
 #if defined(CXUI_GTK4_X11)
 #include <gdk/x11/gdkx.h>
+#include <X11/extensions/shape.h>
 // GDK's X11 interface is deprecated as a whole; an X11 window is what a renderer needs there.
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -185,6 +186,10 @@ static void make(Gtk4Surface* s)
         s->xWin = XCreateWindow(s->xDpy, gdk_x11_surface_get_xid(top), x * scale, y * scale, (unsigned)max(w * scale, 1),
                                 (unsigned)max(h * scale, 1), 0, CopyFromParent, InputOutput, CopyFromParent,
                                 CWBackPixmap | CWEventMask, &a);
+        // An empty input shape, as the Wayland input region: the pointer is never in the child, so
+        // its events and crossings are the toplevel's own. A window manager's click grab otherwise
+        // leaves GTK with the pointer in a window it doesn't know, and the press goes nowhere.
+        XShapeCombineRectangles(s->xDpy, s->xWin, ShapeInput, 0, 0, NULL, 0, ShapeSet, Unsorted);
         XMapWindow(s->xDpy, s->xWin);
         XFlush(s->xDpy);
     }
