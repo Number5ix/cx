@@ -38,6 +38,7 @@ struct Gtk4Surface {
 #if defined(CXUI_GTK4_X11)
     Display* xDpy;
     Window xWin;
+    Colormap xCmap;
 #endif
 };
 
@@ -183,9 +184,23 @@ static void make(Gtk4Surface* s)
     if (GDK_IS_X11_DISPLAY(d)) {
         s->xDpy                = gdk_x11_display_get_xdisplay(d);
         XSetWindowAttributes a = { .background_pixmap = None, .event_mask = 0 };
+        unsigned long mask     = CWBackPixmap | CWEventMask;
+        Visual* visual         = CopyFromParent;
+        int depth              = CopyFromParent;
+        XVisualInfo vi;
+        // Under a compositor GTK's toplevel has an alpha channel, and a child sharing its visual
+        // would show through wherever the renderer leaves alpha below one. Without alpha the
+        // surface is opaque, and a Vulkan swapchain can say so.
+        if (XMatchVisualInfo(s->xDpy, DefaultScreen(s->xDpy), 24, TrueColor, &vi)) {
+            s->xCmap       = XCreateColormap(s->xDpy, DefaultRootWindow(s->xDpy), vi.visual, AllocNone);
+            a.colormap     = s->xCmap;
+            a.border_pixel = 0;
+            visual         = vi.visual;
+            depth          = vi.depth;
+            mask |= CWColormap | CWBorderPixel;
+        }
         s->xWin = XCreateWindow(s->xDpy, gdk_x11_surface_get_xid(top), x * scale, y * scale, (unsigned)max(w * scale, 1),
-                                (unsigned)max(h * scale, 1), 0, CopyFromParent, InputOutput, CopyFromParent,
-                                CWBackPixmap | CWEventMask, &a);
+                                (unsigned)max(h * scale, 1), 0, depth, InputOutput, visual, mask, &a);
         // An empty input shape, as the Wayland input region: the pointer is never in the child, so
         // its events and crossings are the toplevel's own. A window manager's click grab otherwise
         // leaves GTK with the pointer in a window it doesn't know, and the press goes nowhere.
@@ -288,6 +303,8 @@ void _cxuiGtk4SurfaceDestroy(Gtk4Surface* s)
         GdkDisplay* d = gdk_surface_get_display(s->top);
         gdk_x11_display_error_trap_push(d);
         XDestroyWindow(s->xDpy, s->xWin);
+        if (s->xCmap)
+            XFreeColormap(s->xDpy, s->xCmap);
         XFlush(s->xDpy);
         gdk_x11_display_error_trap_pop_ignored(d);
     }
