@@ -78,6 +78,13 @@ struct Gtk4Canvas {
     CxUiPoint lockAt;
 #if defined(CXUI_GTK4_X11)
     bool x11Grab;            // an X pointer grab keeps the pointer in the window
+    // While locked, in the X window's pixels: where the pointer was last seen; where the last warp
+    // sent it, where it was before and the step that took it there; whether no move came since
+    int x11LastX, x11LastY;
+    int x11HomeX, x11HomeY;
+    int x11FromX, x11FromY;
+    int x11StepX, x11StepY;
+    bool x11Warped;
 #endif
 #if defined(CXUI_GTK4_WLLOCK)
     struct zwp_locked_pointer_v1* wlLocked;
@@ -871,7 +878,8 @@ static bool surfacePoint(Gtk4Canvas* c, CxUiPoint px, double* x, double* y)
 }
 
 #if defined(CXUI_GTK4_X11)
-// X11 has no lock: the pointer is kept in the window by a grab and warped back as it moves.
+// X11 has no lock: the pointer is kept in the window by a grab, and warped back to the middle of
+// the canvas when it strays.
 static Window x11Window(Gtk4Canvas* c, Display** dpy)
 {
     GtkNative* nt = gtk_widget_get_native(GTK_WIDGET(c->widget));
@@ -879,16 +887,30 @@ static Window x11Window(Gtk4Canvas* c, Display** dpy)
     return nt ? gdk_x11_surface_get_xid(gtk_native_get_surface(nt)) : None;
 }
 
-static void x11WarpTo(Gtk4Canvas* c, CxUiPoint px)
+// A canvas point in the X window's pixels
+static bool x11Point(Gtk4Canvas* c, CxUiPoint px, int* x, int* y)
+{
+    double sx, sy;
+    if (!surfacePoint(c, px, &sx, &sy))
+        return false;
+    float32 s = _cxuiGtk4WidgetScale(GTK_WIDGET(c->widget));
+    *x        = (int)floor(sx * s);
+    *y        = (int)floor(sy * s);
+    return true;
+}
+
+static bool x11WarpTo(Gtk4Canvas* c, CxUiPoint px)
 {
     Display* dpy;
     Window xw = x11Window(c, &dpy);
-    double x, y;
-    if (!xw || !surfacePoint(c, px, &x, &y))
-        return;
-    float32 s = _cxuiGtk4WidgetScale(GTK_WIDGET(c->widget));
-    XWarpPointer(dpy, None, xw, 0, 0, 0, 0, (int)floor(x * s), (int)floor(y * s));
+    int x, y;
+    if (!xw || !x11Point(c, px, &x, &y))
+        return false;
+    XWarpPointer(dpy, None, xw, 0, 0, 0, 0, x, y);
     XFlush(dpy);
+    c->x11LastX = x;
+    c->x11LastY = y;
+    return true;
 }
 
 static bool x11Lock(Gtk4Canvas* c, CxUiPoint px)
@@ -899,6 +921,7 @@ static bool x11Lock(Gtk4Canvas* c, CxUiPoint px)
         return false;
     c->x11Grab = XGrabPointer(dpy, xw, True, ButtonPressMask | ButtonReleaseMask | PointerMotionMask, GrabModeAsync,
                               GrabModeAsync, xw, None, CurrentTime) == GrabSuccess;
+    c->x11Warped = false;
     x11WarpTo(c, px);
     return true;
 }
@@ -1022,18 +1045,61 @@ static void wlUnlock(Gtk4Canvas* c)
 }
 #endif
 
-// X11 reports the pointer's moves, which go to cxui as distances from the lock point before the
-// pointer goes back there.
+#if defined(CXUI_GTK4_X11)
+static int64 x11Dist2(int x, int y, int tx, int ty)
+{
+    return (int64)(x - tx) * (x - tx) + (int64)(y - ty) * (y - ty);
+}
+#endif
+
+// X11 reports the pointer's moves as the steps between where the server has it, asked for each
+// event rather than taken from it, since events queued before a warp arrive after it. A remote
+// viewer may not follow a warp: its next move then puts the pointer back near where it was. Which
+// happened is judged by the step before the warp, taken again from either place.
 static void lockedMotion(Gtk4Canvas* c, GtkWidget* w, GdkEvent* ev)
 {
 #if defined(CXUI_GTK4_X11)
     if (!GDK_IS_X11_DISPLAY(gtk_widget_get_display(w)))
         return;
-    CxUiPoint at = _cxuiGtk4EventPx(w, ev, &c->lastPointer);
-    float32 dx = (float32)(at.x - c->lockAt.x), dy = (float32)(at.y - c->lockAt.y);
+    Display* dpy;
+    Window xw = x11Window(c, &dpy), root, child;
+    int rx, ry, x, y;
+    unsigned int mask;
+    if (!xw || !XQueryPointer(dpy, xw, &root, &child, &rx, &ry, &x, &y, &mask))
+        return;
+    if (c->x11Warped) {
+        // The warp's own move
+        if (x == c->x11HomeX && y == c->x11HomeY)
+            return;
+        c->x11Warped = false;
+        if (x11Dist2(x, y, c->x11FromX + c->x11StepX, c->x11FromY + c->x11StepY) <
+            x11Dist2(x, y, c->x11HomeX + c->x11StepX, c->x11HomeY + c->x11StepY)) {
+            c->x11LastX = c->x11FromX;
+            c->x11LastY = c->x11FromY;
+        }
+    }
+    float32 dx = (float32)(x - c->x11LastX), dy = (float32)(y - c->x11LastY);
+    c->x11LastX = x;
+    c->x11LastY = y;
+
+    int margin = max(min(c->bounds.w, c->bounds.h) / 4, 1);
+    int hx, hy;
+    if (x11Point(c, (CxUiPoint){ c->bounds.w / 2, c->bounds.h / 2 }, &hx, &hy) &&
+        (abs(x - hx) > margin || abs(y - hy) > margin)) {
+        XWarpPointer(dpy, None, xw, 0, 0, 0, 0, hx, hy);
+        XFlush(dpy);
+        c->x11FromX  = x;
+        c->x11FromY  = y;
+        c->x11StepX  = (int)dx;
+        c->x11StepY  = (int)dy;
+        c->x11HomeX  = hx;
+        c->x11HomeY  = hy;
+        c->x11LastX  = hx;
+        c->x11LastY  = hy;
+        c->x11Warped = true;
+    }
     if (dx == 0 && dy == 0)
         return;
-    x11WarpTo(c, c->lockAt);
     _cxuiNativeEnter();
     _cxuiCanvasPointerMotion(&c->cp.base, dx, dy, _cxuiGtk4StateMods(gdk_event_get_modifier_state(ev)));
     _cxuiNativeLeave();
