@@ -1,14 +1,14 @@
 #pragma once
 
 /// @file desktop.h
-/// @brief The clipboard and the monitors
+/// @brief The clipboard, the monitors and other desktop services
 
 #include <cx/closure.h>
 #include <cxui/cxui_shared.h>
 
 CX_C_BEGIN
 
-/// @defgroup cxui_desktop Clipboard and monitors
+/// @defgroup cxui_desktop Desktop
 /// @ingroup cxui
 /// @{
 /// UI thread only, like the rest of cxui.
@@ -69,6 +69,14 @@ void cxuiMonitorCopy(_Inout_ CxUiMonitor* out, _In_ const CxUiMonitor* m);
 ///
 /// @param m The monitor
 void cxuiMonitorDestroy(_Inout_ CxUiMonitor* m);
+
+/// Gets how close together two clicks must be to make a double click
+///
+/// Canvases already report double clicks; this is for telling them apart in some other way.
+///
+/// @param time Receives the longest time between the clicks, in microseconds
+/// @param distance Receives how far apart they may be, in physical pixels
+void cxuiDoubleClick(_Out_ int64* time, _Out_ int32* distance);
 
 /// Called when monitors are connected, disconnected or rearranged, or their settings change
 ///

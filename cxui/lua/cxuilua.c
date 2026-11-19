@@ -2356,6 +2356,18 @@ static int fParseKey(lua_State* L)
     return 2;
 }
 
+// cxui.doubleclick(): the longest time between the clicks of a double click, in milliseconds, and
+// how far apart they may be, in physical pixels
+static int fDoubleClick(lua_State* L)
+{
+    int64 time;
+    int32 distance;
+    cxuiDoubleClick(&time, &distance);
+    lua_pushinteger(L, time / 1000);
+    lua_pushinteger(L, distance);
+    return 2;
+}
+
 // cxui.keylocks(): the cxui.LOCK flags on
 static int fKeyLocks(lua_State* L)
 {
@@ -3072,6 +3084,7 @@ static const luaL_Reg functions[] = {
     { "keylabel", fKeyLabel },
     { "parsekey", fParseKey },
     { "keylocks", fKeyLocks },
+    { "doubleclick", fDoubleClick },
     { "rgba", fRgba },
     { "rgb", fRgba },
     { "flush", fFlush },

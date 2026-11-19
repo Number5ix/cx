@@ -69,10 +69,9 @@ static void captureEnd(CxUiCanvas* cv)
 
 static bool isDoubleClick(CxUiCanvas* cv, uint32 button, CxUiPoint px, int64 now)
 {
-    int64 time     = timeMS(500);
-    int32 distance = 4;
-    if (_cxui.backend->doubleClick)
-        _cxui.backend->doubleClick(&time, &distance);
+    int64 time;
+    int32 distance;
+    cxuiDoubleClick(&time, &distance);
     return button == cv->_lastButton && now - cv->_lastPress < time && abs(px.x - cv->_lastPressAt.x) <= distance &&
            abs(px.y - cv->_lastPressAt.y) <= distance;
 }

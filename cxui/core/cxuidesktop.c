@@ -204,3 +204,12 @@ void _cxuiPlacementClamp(CxUiPlacement* pl)
     r->y       = clamp(r->y, a.y, a.y + a.h - r->h);
     saDestroy(&mons);
 }
+
+_Use_decl_annotations_
+void cxuiDoubleClick(int64* time, int32* distance)
+{
+    *time     = timeMS(500);
+    *distance = 4;
+    if (_cxui.backend && _cxui.backend->doubleClick)
+        _cxui.backend->doubleClick(time, distance);
+}

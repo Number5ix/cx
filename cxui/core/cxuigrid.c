@@ -1927,10 +1927,9 @@ static CxUiResult clickTick(stvlist* cvars, CxUiTimerEvent* ev)
 // unless something else happens first.
 static void clickArm(CxUiGrid* self)
 {
-    int64 time     = timeMS(500);
-    int32 distance = 4;
-    if (_cxui.backend->doubleClick)
-        _cxui.backend->doubleClick(&time, &distance);
+    int64 time;
+    int32 distance;
+    cxuiDoubleClick(&time, &distance);
     if (!self->_clickTimer) {
         // Holds the grid weakly: the grid holds the timer.
         Weak(CxUiGrid)* wref = objGetWeak(CxUiGrid, self);

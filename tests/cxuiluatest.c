@@ -248,7 +248,7 @@ LUA_TEST(modal)
     return 0;
 }
 
-// Key names both ways, lock keys, and colors.
+// Key names both ways, lock keys, the double-click time, and colors.
 LUA_TEST(keys)
 {
     lua_State* L = newState();
@@ -258,6 +258,8 @@ LUA_TEST(keys)
                           "assert(k == cxui.KEY.F3 and m == cxui.MOD.ctrl | cxui.MOD.shift, name)\n"
                           "assert(cxui.parsekey('Nonsense+Q') == nil)\n"
                           "assert(cxui.keylocks() & cxui.LOCK.num == 0)\n"
+                          "local t, d = cxui.doubleclick()\n"
+                          "assert(t == 500 and d == 4, t .. 'ms ' .. d .. 'px')\n"
                           "assert(cxui.rgb(1, 2, 3) == 0x010203ff and cxui.rgba(1, 2, 3, 4) == 0x01020304)\n");
     closeState(L);
     if (!ok)
