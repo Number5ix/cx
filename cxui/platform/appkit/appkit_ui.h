@@ -146,6 +146,7 @@ int32 _cxuiAppKitWindowMonitor(_In_ NSWindow* w);
 void _cxuiAppKitDesktopInit(void);
 bool _cxuiAppKitClipboardSetText(strref text);
 bool _cxuiAppKitClipboardGetText(string* out);
+bool _cxuiAppKitKeepAwake(bool on, strref reason);
 
 // appkit_text.m
 void _cxuiAppKitTextInit(void);

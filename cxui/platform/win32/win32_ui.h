@@ -91,6 +91,9 @@ int32 _cxuiWin32WindowMonitor(HWND hwnd);
 void _cxuiWin32DisplayChanged(void);
 bool _cxuiWin32ClipboardSetText(_In_opt_ strref text);
 bool _cxuiWin32ClipboardGetText(_Inout_ string* out);
+bool _cxuiWin32KeepAwake(bool on, _In_ strref reason);
+// The screen saver is held off for cxuiKeepDisplayAwake().
+bool _cxuiWin32KeepingAwake(void);
 bool _cxuiWin32TestClipboardForeign(_In_opt_ strref text);
 bool _cxuiWin32TestClipboardRaw(_Inout_ string* out);
 bool _cxuiWin32TestForceDpi(CxUiPeer* p, float32 scale);

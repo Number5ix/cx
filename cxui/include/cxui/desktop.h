@@ -78,6 +78,24 @@ void cxuiMonitorDestroy(_Inout_ CxUiMonitor* m);
 /// @param distance Receives how far apart they may be, in physical pixels
 void cxuiDoubleClick(_Out_ int64* time, _Out_ int32* distance);
 
+/// Keeps the screen saver from starting, and the display from going to sleep
+///
+/// For a program that is watched rather than used, such as a game or a video player. Turn it off
+/// when that ends; it ends anyway when cxui shuts down. Calling it again while it is on changes
+/// the reason.
+///
+/// @param on true to keep the display awake, false to let it sleep again
+/// @param reason Why, which Linux and macOS can show to users; NULL for a general one
+/// @return false if the request couldn't be made
+///
+/// Example:
+/// @code
+///   cxuiKeepDisplayAwake(true, _SL("Playing a video"));
+///   ...
+///   cxuiKeepDisplayAwake(false, NULL);
+/// @endcode
+bool cxuiKeepDisplayAwake(bool on, _In_opt_ strref reason);
+
 /// Called when monitors are connected, disconnected or rearranged, or their settings change
 ///
 /// Raised on the UI thread, with no arguments; call cxuiMonitors() again for the new list. Attach

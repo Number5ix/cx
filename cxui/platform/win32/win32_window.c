@@ -371,6 +371,14 @@ static LRESULT win32WindowMessage(Win32Window* p, HWND hwnd, UINT msg, WPARAM wp
         _cxuiWin32DisplayChanged();
         break;
 
+    // The active window can stop the screen saver, and the monitor turning off (not on: -1),
+    // which the execution state doesn't always.
+    case WM_SYSCOMMAND:
+        if (_cxuiWin32KeepingAwake() &&
+            ((wp & 0xFFF0) == SC_SCREENSAVE || ((wp & 0xFFF0) == SC_MONITORPOWER && lp != -1)))
+            return 0;
+        break;
+
     // Sent to every top-level window, so each window that follows the system hears it.
     case WM_SETTINGCHANGE:
         if (wp == SPI_SETWORKAREA)

@@ -261,6 +261,7 @@ const CxUiBackend _cxuiGtk4Backend = {
     .monitors         = _cxuiGtk4Monitors,
     .clipboardSetText = _cxuiGtk4ClipboardSetText,
     .clipboardGetText = _cxuiGtk4ClipboardGetText,
+    .keepAwake        = _cxuiGtk4KeepAwake,
 
     .messageBox = _cxuiGtk4MessageBox,
     .fileDialog = _cxuiGtk4FileDialog,

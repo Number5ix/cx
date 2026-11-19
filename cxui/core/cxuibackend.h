@@ -394,6 +394,9 @@ typedef struct CxUiBackend {
     bool (*clipboardSetText)(strref text);
     // May run a nested loop while another program answers; must return when cxui shuts down.
     bool (*clipboardGetText)(string* out);
+    // Keeps the display awake or lets it sleep; reason is never empty. On while on replaces the
+    // reason. The core turns it off before the backend shuts down.
+    bool (*keepAwake)(bool on, strref reason);
 
     // ---- dialogs ----
     // Runs a message box in a loop that keeps the UI queue running; parent may be NULL. Returns

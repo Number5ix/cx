@@ -57,6 +57,8 @@ typedef struct CxUiRuntime {
         uint32 unmapped[8];
         uint32 nunmapped;
     } keysDown;
+    // cxuiKeepDisplayAwake() is on (UI thread only)
+    bool keepAwake;
     // Render views whose surface event said the surface is there (UI thread only)
     int32 surfaces;
     // Times the UI queue has run this session, and the wait it asked for last, for tests; written

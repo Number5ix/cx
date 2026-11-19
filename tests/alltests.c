@@ -1206,6 +1206,7 @@ static const testspec tests[] = {
     { "cxui: Monitor Ids, Names And Changes", "cxuitest", "monitorinfo" },
     { "cxui: Clipboard", "cxuitest", "clipboard" },
     { "cxui: Double-Click Time", "cxuitest", "doubleclick" },
+    { "cxui: Keeping The Display Awake", "cxuitest", "keepawake" },
     { "cxui: Shutdown Notify", "cxuitest", "shutdownnotify" },
     { "cxui: Shutdown Destroys Windows", "cxuitest", "shutdowndestroy" },
     { "cxui: Draw Pixels: Shapes", "cxuidrawtest", "pshapes" },

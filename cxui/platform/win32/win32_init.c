@@ -289,6 +289,7 @@ const CxUiBackend _cxuiWin32Backend = {
     .monitors         = _cxuiWin32Monitors,
     .clipboardSetText = _cxuiWin32ClipboardSetText,
     .clipboardGetText = _cxuiWin32ClipboardGetText,
+    .keepAwake        = _cxuiWin32KeepAwake,
 
     .messageBox = _cxuiWin32MessageBox,
     .fileDialog = _cxuiWin32FileDialog,

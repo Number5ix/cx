@@ -179,6 +179,26 @@ void _cxuiWin32DisplayChanged(void)
     cxuiPost(closureCreate(displayChangedTask, stvNone));
 }
 
+// ---- keeping the display awake ----
+
+static bool keepAwake;   // UI thread only
+
+// The execution state belongs to the thread, which is the UI thread throughout.
+_Use_decl_annotations_
+bool _cxuiWin32KeepAwake(bool on, strref reason)
+{
+    unused_noeval(reason);
+    if (!SetThreadExecutionState(on ? ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED : ES_CONTINUOUS))
+        return false;
+    keepAwake = on;
+    return true;
+}
+
+bool _cxuiWin32KeepingAwake(void)
+{
+    return keepAwake;
+}
+
 // ---- clipboard ----
 
 // Another program may have it open for a moment.

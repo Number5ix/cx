@@ -439,6 +439,7 @@ const CxUiBackend _cxuiAppKitBackend = {
     .monitors         = _cxuiAppKitMonitors,
     .clipboardSetText = _cxuiAppKitClipboardSetText,
     .clipboardGetText = _cxuiAppKitClipboardGetText,
+    .keepAwake        = _cxuiAppKitKeepAwake,
 
     .messageBox = _cxuiAppKitMessageBox,
     .fileDialog = _cxuiAppKitFileDialog,

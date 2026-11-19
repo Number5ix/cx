@@ -2408,6 +2408,16 @@ static int fSetClipboard(lua_State* L)
     return lua_pushboolean(L, ok), 1;
 }
 
+// cxui.keepdisplayawake(on, reason): false if the request couldn't be made
+static int fKeepDisplayAwake(lua_State* L)
+{
+    string s = 0;
+    bool on  = lua_toboolean(L, 1);
+    bool ok  = cxuiKeepDisplayAwake(on, lua_isnoneornil(L, 2) ? NULL : checkStr(L, 2, &s));
+    strDestroy(&s);
+    return lua_pushboolean(L, ok), 1;
+}
+
 // ---- grids ----
 
 static CxUiGrid* checkGrid(lua_State* L, int idx)
@@ -3090,6 +3100,7 @@ static const luaL_Reg functions[] = {
     { "flush", fFlush },
     { "clipboard", fClipboard },
     { "setclipboard", fSetClipboard },
+    { "keepdisplayawake", fKeepDisplayAwake },
     { NULL, NULL },
 };
 

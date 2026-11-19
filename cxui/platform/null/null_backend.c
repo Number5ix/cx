@@ -27,6 +27,7 @@ static CxUiMonitor nullMonitors[4];     // UI thread only
 static int32 nullMonitorCount;
 static uint32 nullLockMax;              // the best pointer lock the backend gives; UI thread only
 static uint32 nullKeyLocks;             // CxUiKeyLocks; UI thread only
+static string nullAwakeReason;          // while the display is kept awake; UI thread only
 
 static void nullWakeInitOnce(void* unused)
 {
@@ -1558,6 +1559,15 @@ static bool nullClipboardGetText(string* out)
     return true;
 }
 
+static bool nullKeepAwake(bool on, strref reason)
+{
+    if (on)
+        strDup(&nullAwakeReason, reason);
+    else
+        strDestroy(&nullAwakeReason);
+    return true;
+}
+
 // ---- message boxes ----
 
 // Open boxes, innermost first; each waits until a test answers it.
@@ -2361,6 +2371,13 @@ void cxuiTestSetPointerLockMax(uint32 mode)
     nullLockMax = mode;
 }
 
+_Use_decl_annotations_
+bool cxuiTestKeepAwake(string* reason)
+{
+    strDup(reason, nullAwakeReason);
+    return nullAwakeReason != NULL;
+}
+
 void cxuiTestSetKeyLocks(uint32 locks)
 {
     nullKeyLocks = locks;
@@ -2531,6 +2548,7 @@ const CxUiBackend _cxuiNullBackend = {
     .monitors         = nullMonitorsGet,
     .clipboardSetText = nullClipboardSetText,
     .clipboardGetText = nullClipboardGetText,
+    .keepAwake        = nullKeepAwake,
 
     .messageBox = nullMessageBox,
     .fileDialog = nullFileDialog,

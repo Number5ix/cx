@@ -111,7 +111,7 @@ elseif(CX_PLATFORM_IS_MACOS)
     set_source_files_properties(${CXUI_APPKIT_SRCS} PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_compile_definitions(cxui PRIVATE CXUI_BACKEND_APPKIT)
     target_link_libraries(cxui PUBLIC "-framework AppKit" "-framework ColorSync" "-framework CoreText"
-                                      "-framework QuartzCore" "-framework UniformTypeIdentifiers")
+                                      "-framework IOKit" "-framework QuartzCore" "-framework UniformTypeIdentifiers")
 elseif(CX_PLATFORM_IS_UNIX AND NOT CX_PLATFORM_IS_MACOS)
     find_package(PkgConfig)
     if(PKG_CONFIG_FOUND)

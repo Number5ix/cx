@@ -11531,6 +11531,34 @@ UI_TEST(doubleclick)
     return 0;
 }
 
+// Keeping the display awake can change its reason, and ends when turned off or when cxui shuts down.
+UI_TEST(keepawakebody)
+{
+    string reason = 0;
+    bool off      = cxuiKeepDisplayAwake(false, NULL) && !cxuiTestKeepAwake(&reason);
+    bool on = cxuiKeepDisplayAwake(true, _SL("Watching")) && cxuiTestKeepAwake(&reason) && strEq(reason, _S"Watching");
+    bool general  = cxuiKeepDisplayAwake(true, NULL) && cxuiTestKeepAwake(&reason) && !strEmpty(reason);
+    bool offAgain = cxuiKeepDisplayAwake(false, NULL) && !cxuiTestKeepAwake(&reason);
+    cxuiKeepDisplayAwake(true, _SL("Left on"));
+    strDestroy(&reason);
+    if (!off || !on || !general || !offAgain)
+        TEST_FAIL(1, _SL("off at first ${int}, on ${int}, general reason ${int}, off again ${int}"), stvar(int32, off),
+                  stvar(int32, on), stvar(int32, general), stvar(int32, offAgain));
+    return 0;
+}
+
+static int test_cxui_keepawake(void)
+{
+    if (test_cxui_keepawakebody())
+        return 1;
+    string reason = 0;
+    bool left     = cxuiTestKeepAwake(&reason);
+    strDestroy(&reason);
+    if (left)
+        TEST_FAIL(1, _SL("the display was still kept awake after cxui shut down"), stvNone);
+    return 0;
+}
+
 typedef struct NotifyRec {
     atomic(int32) calls;
     atomic(bool) onUI;
@@ -11686,8 +11714,8 @@ static int test_cxui_shutdowndestroy(void)
 static int test_cxui_grp_desktop(void)
 {
     TEST_CHAIN(test_cxui_placement, test_cxui_placementclamp, test_cxui_fullscreen, test_cxui_windowlevel, test_cxui_monitors,
-               test_cxui_monitorinfo, test_cxui_clipboard, test_cxui_doubleclick, test_cxui_shutdownnotify,
-               test_cxui_shutdowndestroy);
+               test_cxui_monitorinfo, test_cxui_clipboard, test_cxui_doubleclick, test_cxui_keepawake,
+               test_cxui_shutdownnotify, test_cxui_shutdowndestroy);
 }
 
 testfunc cxuitest_funcs[] = {
@@ -11872,6 +11900,7 @@ testfunc cxuitest_funcs[] = {
     { "monitorinfo", test_cxui_monitorinfo },
     { "clipboard", test_cxui_clipboard },
     { "doubleclick", test_cxui_doubleclick },
+    { "keepawake", test_cxui_keepawake },
     { "shutdownnotify", test_cxui_shutdownnotify },
     { "shutdowndestroy", test_cxui_shutdowndestroy },
     { "grp_desktop", test_cxui_grp_desktop },

@@ -213,3 +213,18 @@ void cxuiDoubleClick(int64* time, int32* distance)
     if (_cxui.backend && _cxui.backend->doubleClick)
         _cxui.backend->doubleClick(time, distance);
 }
+
+_Use_decl_annotations_
+bool cxuiKeepDisplayAwake(bool on, strref reason)
+{
+    if (!_cxui.backend || !_cxui.backend->keepAwake)
+        return false;
+    if (!on && !_cxui.keepAwake)
+        return true;
+    _cxuiNativeEnter();
+    bool ok = _cxui.backend->keepAwake(on, strEmpty(reason) ? _S"Keeping the display awake" : reason);
+    _cxuiNativeLeave();
+    if (ok)
+        _cxui.keepAwake = on;
+    return ok;
+}

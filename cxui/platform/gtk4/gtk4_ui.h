@@ -71,6 +71,7 @@ void _cxuiGtk4DesktopInit(void);
 GdkMonitor* _cxuiGtk4MonitorFor(_In_ const CxUiMonitor* m);
 bool _cxuiGtk4ClipboardSetText(_In_opt_ strref text);
 bool _cxuiGtk4ClipboardGetText(_Inout_ string* out);
+bool _cxuiGtk4KeepAwake(bool on, _In_ strref reason);
 void _cxuiGtk4ClipboardStore(void);
 void _cxuiGtk4DesktopShutdown(void);
 bool _cxuiGtk4TestClipboardForeign(_In_opt_ strref text);

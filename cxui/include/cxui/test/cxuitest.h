@@ -420,6 +420,9 @@ CxUiResult cxuiTestKeyScancode(_In_ CxUiWidget* target, CxUiKey key, uint32 mods
 void cxuiTestSetDoubleClick(int64 time, int32 distance);
 // The null backend's CxUiKeyLocks; reset to none when cxui starts. UI thread only.
 void cxuiTestSetKeyLocks(uint32 locks);
+// Whether the null backend is keeping the display awake, and why. UI thread only, or after
+// cxuiShutdown().
+bool cxuiTestKeepAwake(_Inout_ string* reason);
 
 // Where a realized canvas's top left is on the screen, in physical pixels. False where the platform
 // can't tell (Linux). Any backend; UI thread only.

@@ -1,6 +1,7 @@
 #include "appkit_ui.h"
 
 #include <ColorSync/ColorSync.h>
+#include <IOKit/pwr_mgt/IOPMLib.h>
 
 // ---- monitors ----
 
@@ -74,6 +75,25 @@ void _cxuiAppKitDesktopInit(void)
                                                              _cxuiMonitorsChanged();
                                                              _cxuiNativeLeave();
                                                            }];
+}
+
+// ---- keeping the display awake ----
+
+static IOPMAssertionID awakeId;
+static bool awake;
+
+// A new assertion is made before the old one is let go, so the display can't sleep between them.
+bool _cxuiAppKitKeepAwake(bool on, strref reason)
+{
+    IOPMAssertionID id = 0;
+    if (on && IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleDisplaySleep, kIOPMAssertionLevelOn,
+                                          (__bridge CFStringRef)_cxuiAppKitString(reason), &id) != kIOReturnSuccess)
+        return false;
+    if (awake)
+        IOPMAssertionRelease(awakeId);
+    awakeId = id;
+    awake   = on;
+    return true;
 }
 
 // ---- clipboard ----

@@ -1,6 +1,7 @@
 #include "gtk4_ui.h"
 
 #include <cx/format.h>
+#include <cx/fs.h>
 
 #ifdef GDK_WINDOWING_X11
 #include <gdk/x11/gdkx.h>
@@ -232,6 +233,88 @@ void _cxuiGtk4X11SetAbove(GtkWindow* win, bool on)
     unused_noeval(win);
     (void)on;
 #endif
+}
+
+// ---- keeping the display awake ----
+
+// Through the desktop portal, or the older screen saver service where there is none: the portal
+// request to close, or the screen saver's cookie. Either also ends with the program.
+typedef struct AwakeHold {
+    char* request;
+    guint32 cookie;
+} AwakeHold;
+static AwakeHold awakeHold;
+
+// How long to wait for the session bus to answer, which blocks the UI thread
+#define AWAKE_TIMEOUT_MS 2000
+
+// The portal's Inhibit flag for the session going idle
+#define PORTAL_INHIBIT_IDLE 8
+
+static GVariant* busCall(GDBusConnection* bus, const char* name, const char* path, const char* iface,
+                         const char* method, GVariant* args, const GVariantType* reply)
+{
+    return g_dbus_connection_call_sync(bus, name, path, iface, method, args, reply, G_DBUS_CALL_FLAGS_NONE,
+                                       AWAKE_TIMEOUT_MS, NULL, NULL);
+}
+
+static bool awakeTake(GDBusConnection* bus, const char* reason, AwakeHold* out)
+{
+    GVariantBuilder opts;
+    g_variant_builder_init(&opts, G_VARIANT_TYPE_VARDICT);
+    g_variant_builder_add(&opts, "{sv}", "reason", g_variant_new_string(reason));
+    GVariant* r = busCall(bus, "org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop",
+                          "org.freedesktop.portal.Inhibit", "Inhibit",
+                          g_variant_new("(sua{sv})", "", (guint32)PORTAL_INHIBIT_IDLE, &opts), G_VARIANT_TYPE("(o)"));
+    if (r) {
+        g_variant_get(r, "(o)", &out->request);
+        g_variant_unref(r);
+        return true;
+    }
+    string exe = 0, app = 0;
+    fsExe(&exe);
+    pathFilename(&app, exe);
+    r = busCall(bus, "org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver",
+                "Inhibit", g_variant_new("(ss)", strC(app), reason), G_VARIANT_TYPE("(u)"));
+    strDestroy(&exe);
+    strDestroy(&app);
+    if (!r)
+        return false;
+    g_variant_get(r, "(u)", &out->cookie);
+    g_variant_unref(r);
+    return true;
+}
+
+static void awakeRelease(GDBusConnection* bus, AwakeHold* h)
+{
+    GVariant* r = NULL;
+    if (h->request)
+        r = busCall(bus, "org.freedesktop.portal.Desktop", h->request, "org.freedesktop.portal.Request", "Close", NULL,
+                    NULL);
+    else if (h->cookie)
+        r = busCall(bus, "org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver", "org.freedesktop.ScreenSaver",
+                    "UnInhibit", g_variant_new("(u)", h->cookie), NULL);
+    if (r)
+        g_variant_unref(r);
+    g_free(h->request);
+    *h = (AwakeHold){ 0 };
+}
+
+// A new hold is taken before the old one is let go, so the display can't sleep between them.
+_Use_decl_annotations_
+bool _cxuiGtk4KeepAwake(bool on, strref reason)
+{
+    GDBusConnection* bus = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
+    if (!bus)
+        return false;
+    AwakeHold next = { 0 };
+    bool ok        = !on || awakeTake(bus, strC(reason), &next);
+    if (ok) {
+        awakeRelease(bus, &awakeHold);
+        awakeHold = next;
+    }
+    g_object_unref(bus);
+    return ok;
 }
 
 // ---- clipboard ----

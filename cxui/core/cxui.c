@@ -108,6 +108,9 @@ static void sessionTeardown(void)
     _cxuiWindowsRelease();
     _cxui.capture = NULL;
     memset(&_cxui.keysDown, 0, sizeof(_cxui.keysDown));
+    if (_cxui.keepAwake)
+        cxuiKeepDisplayAwake(false, NULL);
+    _cxui.keepAwake = false;
     _cxui.backend->shutdown();
 }
 
