@@ -1,7 +1,13 @@
 #include "string_private.h"
 #include "cx/debug/error.h"
 #include "cx/utils/compare.h"
+#include "cx/utils/lazyinit.h"
 #include "strnum_fppowers.h"
+
+#include <locale.h>
+#if defined(_PLATFORM_MACOS) || defined(_PLATFORM_FBSD)
+#include <xlocale.h>
+#endif
 
 STR_CONST(kInf, "inf");
 STR_CONST(kNan, "nan");
@@ -562,6 +568,65 @@ bool strFromFloat64(_Inout_ string* out, float64 d)
 
 // string to float parsing -------------------------------------------------------------
 
+// The C library does the decimal conversion for correct rounding, but strtod/strtof follow
+// LC_NUMERIC, so they're called with a private "C" locale to keep '.' as the decimal point.
+// musl (wasm) never localizes the decimal point.
+#if defined(_PLATFORM_WIN)
+static LazyInitState fpLocaleInit;
+static _locale_t fpLocale;
+
+static void initFpLocale(void* unused)
+{
+    unused_noeval(unused);
+    fpLocale = _create_locale(LC_ALL, "C");
+    relAssert(fpLocale);
+}
+
+static double fpParse64(const char* cstr, char** endptr)
+{
+    lazyInit(&fpLocaleInit, initFpLocale, NULL);
+    return _strtod_l(cstr, endptr, fpLocale);
+}
+
+static float fpParse32(const char* cstr, char** endptr)
+{
+    lazyInit(&fpLocaleInit, initFpLocale, NULL);
+    return _strtof_l(cstr, endptr, fpLocale);
+}
+#elif defined(_PLATFORM_WASM)
+static double fpParse64(const char* cstr, char** endptr)
+{
+    return strtod(cstr, endptr);
+}
+
+static float fpParse32(const char* cstr, char** endptr)
+{
+    return strtof(cstr, endptr);
+}
+#else
+static LazyInitState fpLocaleInit;
+static locale_t fpLocale;
+
+static void initFpLocale(void* unused)
+{
+    unused_noeval(unused);
+    fpLocale = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+    relAssert(fpLocale);
+}
+
+static double fpParse64(const char* cstr, char** endptr)
+{
+    lazyInit(&fpLocaleInit, initFpLocale, NULL);
+    return strtod_l(cstr, endptr, fpLocale);
+}
+
+static float fpParse32(const char* cstr, char** endptr)
+{
+    lazyInit(&fpLocaleInit, initFpLocale, NULL);
+    return strtof_l(cstr, endptr, fpLocale);
+}
+#endif
+
 // Apply the restrictions that have to be checked before the text reaches strtod/strtof,
 // which accept leading whitespace, a sign and a hex-float prefix unconditionally. Returns
 // the first character of the number, or NULL if one of the restrictions was violated.
@@ -629,9 +694,8 @@ bool strToFloat64(float64* out, strref s, flags_t flags)
         return true;
     }
 
-    // Use standard library strtod for correct rounding
     char* endptr;
-    double result = strtod(cstr, &endptr);
+    double result = fpParse64(cstr, &endptr);
 
     // Check if parsing succeeded
     if (endptr == cstr) {
@@ -697,9 +761,8 @@ bool strToFloat32(float32* out, strref s, flags_t flags)
         return true;
     }
 
-    // Use standard library strtof for correct rounding
     char* endptr;
-    float result = strtof(cstr, &endptr);
+    float result = fpParse32(cstr, &endptr);
 
     // Check if parsing succeeded
     if (endptr == cstr) {

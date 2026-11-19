@@ -169,6 +169,8 @@
 ///   cxui where Windows has none, and canvases drawn with Direct2D (GDI on XP and under Wine).
 /// - **Linux**: GTK 4, on Wayland or X11. Programs can't place windows there, so positions and
 ///   moving a window beside another do nothing; sizes and the maximized state still work.
+///   cxui leaves the C locale as the program set it, so GTK's own text, such as the file
+///   dialog's buttons, is translated only if the program calls `setlocale(LC_ALL, "")`.
 /// - **macOS** from 14.4, on Apple silicon and Intel: AppKit. The menu bar at the top of the
 ///   screen shows the key window's menus. There are no mnemonics, so the `&` is left out of
 ///   titles, and Command is the shortcut key where the others use Ctrl

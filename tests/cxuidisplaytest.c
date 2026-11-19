@@ -9,6 +9,8 @@
 #include <cxui/test/cxuitest.h>
 #include "tqtestobj.h"
 
+#include <locale.h>
+
 #if defined(_PLATFORM_WIN)
 #include <cx/platform/win.h>
 #endif
@@ -156,6 +158,27 @@ static int test_cxuid_sessions(void)
                       stvar(int32, runs));
     }
     return 0;
+}
+
+// Starting cxui leaves the process locale as the program set it, whatever the environment says.
+static int test_cxuid_locale(void)
+{
+    string before = 0, after = 0;
+    strCopy(&before, (strref)setlocale(LC_ALL, NULL));
+    UI_START_NATIVE();
+    cxuiShutdown();
+    strCopy(&after, (strref)setlocale(LC_ALL, NULL));
+
+    int ret = 0;
+    if (!strEq(before, after)) {
+        // put it back so later tests run in the locale they started with
+        setlocale(LC_ALL, strC(before));
+        TEST_FAILV(ret, 1, _SL("cxuiStart changed the locale from '${string}' to '${string}'"),
+                   stvar(string, before), stvar(string, after));
+    }
+    strDestroy(&before);
+    strDestroy(&after);
+    return ret;
 }
 
 static int uiFloodThread(Thread* self)
@@ -4749,7 +4772,8 @@ static int test_cxuid_grp_modal(void)
 
 static int test_cxuid_grp_loop(void)
 {
-    TEST_CHAIN(test_cxuid_sessions, test_cxuid_flood);
+    // locale goes first: only the first start in a process initializes GTK.
+    TEST_CHAIN(test_cxuid_locale, test_cxuid_sessions, test_cxuid_flood);
 }
 
 // ---- clipboard, monitors and placement ----
@@ -6120,6 +6144,7 @@ static int test_cxuid_fullscreen(void)
 }
 
 testfunc cxuidisplaytest_funcs[] = {
+    { "locale", test_cxuid_locale },
     { "sessions", test_cxuid_sessions },
     { "flood", test_cxuid_flood },
     { "grp_loop", test_cxuid_grp_loop },

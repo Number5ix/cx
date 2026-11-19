@@ -47,6 +47,11 @@ static bool gtk4Init(flags_t flags)
 {
     unused_noeval(flags);
 
+    // Keep GTK from applying the environment's locale to the whole process. GTK warns if this is
+    // called after init, which a later session would do.
+    if (!gtk_is_initialized())
+        gtk_disable_setlocale();
+
     // Only the first call tries to open a display, and later ones return TRUE even if that
     // failed, so the display itself says whether GTK can be used.
     if (!gtk_init_check() || !gdk_display_get_default()) {

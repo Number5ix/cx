@@ -1,5 +1,10 @@
+#include <cx/serialize/jsonparse.h>
+#include <cx/ssdtree/ssdtree.h>
 #include <cx/string.h>
 #include <cx/string/strtest.h>
+
+#include <locale.h>
+#include <string.h>
 
 #define TEST_FILE strtest
 #define TEST_FUNCS strtest_funcs
@@ -2075,6 +2080,75 @@ static int test_literal()
     return 0;
 }
 
+// Switches LC_NUMERIC to a locale that uses a comma as the decimal point. Returns false if
+// none is installed.
+static bool setCommaLocale(void)
+{
+#if defined(_PLATFORM_WIN)
+    static const char* names[] = { "de-DE", "German", "fr-FR" };
+#else
+    static const char* names[] = { "de_DE.UTF-8", "de_DE.utf8", "de_DE", "fr_FR.UTF-8",
+                                   "fr_FR.utf8", "fr_FR" };
+#endif
+    for (int i = 0; i < (int)(sizeof(names) / sizeof(names[0])); i++) {
+        if (setlocale(LC_NUMERIC, names[i]) && localeconv()->decimal_point[0] == ',')
+            return true;
+    }
+    return false;
+}
+
+static int numLocaleChecks(void)
+{
+    int ret     = 0;
+    float64 f64 = 0;
+    float32 f32 = 0;
+
+    if (!strToFloat64(&f64, _S"1.5", STRNUM_NoTrailing) || f64 != 1.5)
+        TEST_FAILV(ret, 1, _SL("strToFloat64(\"1.5\") under a comma locale: f64=${float}"),
+                   stvar(float64, f64));
+    if (!strToFloat32(&f32, _S"2.25", STRNUM_NoTrailing) || f32 != 2.25f)
+        TEST_FAILV(ret, 1, _SL("strToFloat32(\"2.25\") under a comma locale: f32=${float}"),
+                   stvar(float32, f32));
+    if (strToFloat64(&f64, _S"1,5", STRNUM_NoTrailing))
+        TEST_FAILV(ret, 1, _SL("strToFloat64(\"1,5\") succeeded under a comma locale: f64=${float}"),
+                   stvar(float64, f64));
+
+    SSDNode* tree = jsonTreeFromString(_S"{\"v\": 109.3}");
+    if (!tree) {
+        TEST_FAILV(ret, 1, _SL("jsonTreeFromString failed under a comma locale (${string})"),
+                   stvar(strref, _S"{\"v\": 109.3}"));
+    } else {
+        f64 = ssdVal(float64, tree, _S"v", -1.0);
+        if (f64 != 109.3)
+            TEST_FAILV(ret, 1, _SL("JSON float under a comma locale: v=${float} != 109.3"),
+                       stvar(float64, f64));
+        objRelease(&tree);
+    }
+
+    return ret;
+}
+
+static int test_num_locale()
+{
+    char saved[128];
+    const char* cur = setlocale(LC_NUMERIC, NULL);
+    size_t curlen     = cur ? strlen(cur) : 0;
+    if (!cur || curlen >= sizeof(saved))
+        TEST_FAIL(1, _SL("couldn't save the current LC_NUMERIC (${string})"),
+                  stvar(strref, (strref)(cur ? cur : "NULL")));
+    memcpy(saved, cur, curlen + 1);
+
+    if (!setCommaLocale()) {
+        TEST_WARN(_SL("no comma-decimal locale installed; skipping (LC_NUMERIC=${string})"),
+                  stvar(strref, (strref)saved));
+        return 0;
+    }
+
+    int ret = numLocaleChecks();
+    setlocale(LC_NUMERIC, saved);
+    return ret;
+}
+
 testfunc strtest_funcs[] = {
     { "join",        test_join         },
     { "append",      test_append       },
@@ -2086,6 +2160,7 @@ testfunc strtest_funcs[] = {
     { "find",        test_find         },
     { "rope",        test_rope         },
     { "num",         test_num          },
+    { "numlocale",   test_num_locale   },
     { "bytes",       test_bytes        },
     { "findchar",    test_findchar     },
     { "trim",        test_trim         },

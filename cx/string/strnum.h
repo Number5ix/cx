@@ -191,7 +191,8 @@ bool strFromUInt64(_Inout_ strhandle out, uint64 i, uint16 base);
 ///
 /// Parses a string as a single-precision float. Supports standard decimal notation,
 /// scientific notation (e.g., "1.23e-4"), and special values ("inf", "nan").
-/// Leading whitespace is skipped unless STRNUM_NoWS is set.
+/// Leading whitespace is skipped unless STRNUM_NoWS is set. The decimal point is
+/// always '.', whatever the C locale is set to.
 ///
 /// STRNUM_NoPrefix rejects a hexadecimal float such as "0x1p3".
 ///

@@ -183,9 +183,8 @@ bool _sysPlatformUptime(SysUptime* out)
     if (_linuxReadProcFile("/proc/uptime", buf, sizeof(buf)) < 0)
         return unixMapErrno();
 
-    char* end     = NULL;
-    double uptime = strtod(buf, &end);
-    if (end == buf || uptime < 0) {
+    float64 uptime;
+    if (!strToFloat64(&uptime, (strref)buf, 0) || uptime < 0) {
         cxerr = CX_Unspecified;
         return false;
     }
