@@ -1109,6 +1109,7 @@ static const testspec tests[] = {
     { "cxui: Borderless Window Drag", "cxuitest", "inputdrag" },
     { "cxui: Mouse In DIPs", "cxuitest", "inputdip" },
     { "cxui: Keys, Wheel, Focus And Cursors", "cxuitest", "inputkeys" },
+    { "cxui: Keys Without A Code", "cxuitest", "inputunmapped" },
     { "cxui: Canvas Text Input", "cxuitest", "inputtext" },
     { "cxui: Mouse Move Distances", "cxuitest", "pointerdelta" },
     { "cxui: Pointer Lock", "cxuitest", "pointerlock" },

@@ -3685,6 +3685,54 @@ UI_TEST(inputkeys)
     return 0;
 }
 
+// A key with no CxUiKey is reported by its scancode, and each such key repeats on its own.
+UI_TEST(inputunmapped)
+{
+    inlogReset();
+    CxUiWindow* w     = cxuiWindowCreate(&(CxUiWindowDesc){ .size = { 100, 100 } });
+    CxUiBox* box      = cxuiBoxCreate(&(CxUiBoxDesc){ .orient = CXUI_ORIENT_V });
+    CxUiCanvas* cv    = cxuiCanvasCreate(NULL);
+    CxUiCanvas* other = cxuiCanvasCreate(NULL);
+    cxuiContainerAppend(box, cv);
+    cxuiContainerAppend(box, other);
+    cxuiContainerAppend(w, box);
+    cxuiWindowShow(w, CXUI_SHOW_Normal);
+    cxuiFocus(cv);
+    cxuiOnKey(w, inKey, stvar(int32, CXUI_Handled));
+
+    // 1 down, 1 down again, 2 down, 1 up, 1 down, 2 down again
+    static const struct {
+        uint32 scancode;
+        bool down, repeat;
+    } steps[] = {
+        { 94, true, false }, { 94, true, true }, { 34, true, false },
+        { 94, false, false }, { 94, true, false }, { 34, true, true },
+    };
+    for (int32 i = 0; i < (int32)(sizeof(steps) / sizeof(steps[0])); i++) {
+        CxUiResult r    = cxuiTestKeyScancode(CxUiWidget(cv), CXUI_KEY_None, 0, steps[i].scancode, steps[i].down);
+        CxUiKeyEvent* k = &inlog.lastKey;
+        if (r != CXUI_Handled || inlog.keys != i + 1 || k->key != CXUI_KEY_None || k->scancode != steps[i].scancode ||
+            k->down != steps[i].down || k->repeat != steps[i].repeat)
+            TEST_FAIL(1, _SL("step ${int}: ${int} events, key ${int} scancode ${uint} down ${int} repeat ${int}"),
+                      stvar(int32, i), stvar(int32, inlog.keys), stvar(int32, k->key), stvar(uint32, k->scancode),
+                      stvar(int32, k->down), stvar(int32, k->repeat));
+    }
+
+    // Keys released while focus was elsewhere are forgotten.
+    cxuiFocus(other);
+    cxuiFocus(cv);
+    cxuiTestKeyScancode(CxUiWidget(cv), CXUI_KEY_None, 0, 34, true);
+    if (inlog.lastKey.repeat)
+        TEST_FAIL(1, _SL("a key held across a focus change repeated"), stvNone);
+
+    cxuiDestroy(w);
+    objRelease(&cv);
+    objRelease(&other);
+    objRelease(&box);
+    objRelease(&w);
+    return 0;
+}
+
 // Text comes only while text input is on, and bubbles; settings made before the canvas is
 // realized reach its peer, and the caret reaches it in physical pixels.
 UI_TEST(inputtext)
@@ -8434,8 +8482,9 @@ static int test_cxui_grp_frames(void)
 static int test_cxui_grp_input(void)
 {
     TEST_CHAIN(test_cxui_inputcapture, test_cxui_inputdouble, test_cxui_inputlost, test_cxui_inputdrag,
-               test_cxui_inputdip, test_cxui_inputkeys, test_cxui_inputtext, test_cxui_pointerdelta,
-               test_cxui_pointerlock, test_cxui_pointerlockdrag, test_cxui_keycapture, test_cxui_cursorimage);
+               test_cxui_inputdip, test_cxui_inputkeys, test_cxui_inputunmapped, test_cxui_inputtext,
+               test_cxui_pointerdelta, test_cxui_pointerlock, test_cxui_pointerlockdrag, test_cxui_keycapture,
+               test_cxui_cursorimage);
 }
 
 // ---- render views ----
@@ -11685,6 +11734,7 @@ testfunc cxuitest_funcs[] = {
     { "inputdrag", test_cxui_inputdrag },
     { "inputdip", test_cxui_inputdip },
     { "inputkeys", test_cxui_inputkeys },
+    { "inputunmapped", test_cxui_inputunmapped },
     { "inputtext", test_cxui_inputtext },
     { "pointerdelta", test_cxui_pointerdelta },
     { "pointerlock", test_cxui_pointerlock },

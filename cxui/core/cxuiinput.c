@@ -245,18 +245,40 @@ CxUiResult _cxuiCanvasWheel(CxUiPeer* p, float64 dx, float64 dy, uint32 mods, Cx
     return r;
 }
 
+// Records a key going down or up; true if it was already down.
+static bool keyWasDown(CxUiKey key, uint32 scancode, bool down)
+{
+    if (key != CXUI_KEY_None) {
+        uint32* word = &_cxui.keysDown.byKey[key / 32];
+        uint32 bit   = 1u << (key % 32);
+        bool was     = (*word & bit) != 0;
+        if (down)
+            *word |= bit;
+        else
+            *word &= ~bit;
+        return was;
+    }
+    uint32* held = _cxui.keysDown.unmapped;
+    uint32 n     = _cxui.keysDown.nunmapped;
+    for (uint32 i = 0; i < n; i++) {
+        if (held[i] == scancode) {
+            if (!down)
+                held[i] = held[--_cxui.keysDown.nunmapped];
+            return true;
+        }
+    }
+    // Past the limit a held key just isn't seen to repeat.
+    if (down && n < sizeof(_cxui.keysDown.unmapped) / sizeof(uint32))
+        held[_cxui.keysDown.nunmapped++] = scancode;
+    return false;
+}
+
 _Use_decl_annotations_
 CxUiResult _cxuiKey(CxUiPeer* p, CxUiKey key, uint32 mods, uint32 scancode, bool down)
 {
     if (!p->w || !_cxuiLive(p->w) || (uint32)key >= CXUI_KEY_Count)
         return CXUI_Default;
-    uint32* word = &_cxui.keysDown[key / 32];
-    uint32 bit   = 1u << (key % 32);
-    bool repeat  = down && (*word & bit);
-    if (down)
-        *word |= bit;
-    else
-        *word &= ~bit;
+    bool repeat = keyWasDown(key, scancode, down) && down;
     CxUiKeyEvent ev = { .base.kind = CXUI_EV_Key, .key = key, .mods = mods, .scancode = scancode, .down = down,
                         .repeat = repeat };
     CxUiWidget* w   = objAcquire(p->w);
@@ -465,7 +487,7 @@ void _cxuiFocusChanged(CxUiPeer* p, bool gained)
             win->_focus = NULL;
     }
     // Keys released while focus was elsewhere are never reported.
-    memset(_cxui.keysDown, 0, sizeof(_cxui.keysDown));
+    memset(&_cxui.keysDown, 0, sizeof(_cxui.keysDown));
     CxUiFocusEvent ev = { .base.kind = CXUI_EV_Focus, .gained = gained };
     _cxuiDispatch(w, &ev.base);
 }

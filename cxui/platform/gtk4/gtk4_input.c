@@ -119,8 +119,6 @@ bool _cxuiGtk4Key(CxUiPeer* p, GdkEvent* ev)
     CxUiKey key = keyvalToKey(keyval);
     if (key == CXUI_KEY_None)
         key = keyvalToKey(gdk_key_event_get_keyval(ev));
-    if (key == CXUI_KEY_None)
-        return false;
     _cxuiNativeEnter();
     CxUiResult r = _cxuiKey(p, key, _cxuiGtk4StateMods(gdk_event_get_modifier_state(ev)), keycode, type == GDK_KEY_PRESS);
     _cxuiNativeLeave();

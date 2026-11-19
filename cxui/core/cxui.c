@@ -107,7 +107,7 @@ static void sessionTeardown(void)
     _cxuiPeersDestroyAll();
     _cxuiWindowsRelease();
     _cxui.capture = NULL;
-    memset(_cxui.keysDown, 0, sizeof(_cxui.keysDown));
+    memset(&_cxui.keysDown, 0, sizeof(_cxui.keysDown));
     _cxui.backend->shutdown();
 }
 

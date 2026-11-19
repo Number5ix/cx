@@ -2288,10 +2288,16 @@ void cxuiTestWheelPause(void)
 _Use_decl_annotations_
 CxUiResult cxuiTestKey(CxUiWidget* target, CxUiKey key, uint32 mods, bool down)
 {
+    return cxuiTestKeyScancode(target, key, mods, 0, down);
+}
+
+_Use_decl_annotations_
+CxUiResult cxuiTestKeyScancode(CxUiWidget* target, CxUiKey key, uint32 mods, uint32 scancode, bool down)
+{
     if (!target || !target->peer)
         return CXUI_Default;
     _cxuiNativeEnter();
-    CxUiResult r = _cxuiKey(target->peer, key, mods, 0, down);
+    CxUiResult r = _cxuiKey(target->peer, key, mods, scancode, down);
     _cxuiNativeLeave();
     return r;
 }

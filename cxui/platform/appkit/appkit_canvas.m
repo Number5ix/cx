@@ -264,7 +264,8 @@ _Use_decl_annotations_
 bool _cxuiAppKitKey(CxUiPeer* p, NSEvent* ev)
 {
     CxUiKey key = eventKey(ev);
-    if (key == CXUI_KEY_None)
+    // Whether a modifier cxui has no code for went down or up can't be told.
+    if (key == CXUI_KEY_None && ev.type == NSEventTypeFlagsChanged)
         return false;
     bool down = ev.type == NSEventTypeKeyDown || (ev.type == NSEventTypeFlagsChanged && modifierDown(ev, key));
     _cxuiNativeEnter();

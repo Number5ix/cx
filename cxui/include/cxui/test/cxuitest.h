@@ -414,6 +414,8 @@ typedef struct CxUiTestLoopStats {
 void cxuiTestLoopStats(_Out_ CxUiTestLoopStats* out);
 // A key, as if pressed in target: a focused canvas, or a window. Any backend; UI thread only.
 CxUiResult cxuiTestKey(_In_ CxUiWidget* target, CxUiKey key, uint32 mods, bool down);
+// cxuiTestKey() with the platform's scancode for the key, as for a key with no CxUiKey
+CxUiResult cxuiTestKeyScancode(_In_ CxUiWidget* target, CxUiKey key, uint32 mods, uint32 scancode, bool down);
 // The null backend's double-click time, in microseconds, and distance in pixels.
 void cxuiTestSetDoubleClick(int64 time, int32 distance);
 

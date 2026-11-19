@@ -14,6 +14,10 @@ CX_C_BEGIN
 /// Keys are identified by what they mean in the current keyboard layout, not by their position:
 /// CXUI_KEY_Z is the key that types a "z", wherever it is on the keyboard.
 ///
+/// A key cxui has no code for, such as `ü` on a German keyboard, still raises key events, with
+/// CXUI_KEY_None as the key. Its `scancode` tells it apart from other keys, so it can still be
+/// bound. Scancodes are the platform's own numbers: one saved on Windows means nothing on Linux.
+///
 /// A key with modifiers has a **name** such as `"Ctrl+Shift+F3"` or `"Primary+F"`, for storing in
 /// settings, and a **label** for showing to users. Names are the same on every platform and stable
 /// across versions. The modifiers come first, in the order Primary, Ctrl, Alt, Shift, Meta, and the

@@ -79,10 +79,11 @@ uint32 _cxuiWin32KeyMods(void)
 _Use_decl_annotations_
 bool _cxuiWin32Key(CxUiPeer* p, UINT msg, WPARAM wp, LPARAM lp)
 {
-    CxUiKey key = vkToKey(wp, lp);
-    if (key == CXUI_KEY_None)
+    // Keys an IME took, and characters sent as keys, aren't keys on the keyboard.
+    if (wp == VK_PROCESSKEY || wp == VK_PACKET)
         return false;
-    bool down       = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+    CxUiKey key = vkToKey(wp, lp);
+    bool down      = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
     uint32 scancode = ((uint32)(lp >> 16) & 0xFF) | ((lp & 0x01000000) ? 0x100 : 0);
     _cxuiNativeEnter();
     CxUiResult r = _cxuiKey(p, key, _cxuiWin32KeyMods(), scancode, down);

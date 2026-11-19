@@ -50,8 +50,13 @@ typedef struct CxUiRuntime {
     int64 wheelAt;
     CxUiWindow* wheelWin;
     CxUiCanvas* wheelTo;
-    // Keys down, by CxUiKey, so repeats can be told apart on every platform (UI thread only)
-    uint32 keysDown[(CXUI_KEY_Count + 31) / 32];
+    // Keys down, so repeats can be told apart on every platform: by CxUiKey, and by scancode for
+    // keys without one (UI thread only)
+    struct {
+        uint32 byKey[(CXUI_KEY_Count + 31) / 32];
+        uint32 unmapped[8];
+        uint32 nunmapped;
+    } keysDown;
     // Render views whose surface event said the surface is there (UI thread only)
     int32 surfaces;
     // Times the UI queue has run this session, and the wait it asked for last, for tests; written
