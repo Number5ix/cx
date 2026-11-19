@@ -91,6 +91,13 @@ enum CxUiModifiers {
     CXUI_MOD_Primary = 0x0010,
 };
 
+/// Lock keys that are on, as given by cxuiKeyLocks()
+enum CxUiKeyLocks {
+    CXUI_LOCK_Caps   = 0x0001,
+    CXUI_LOCK_Num    = 0x0002,
+    CXUI_LOCK_Scroll = 0x0004,
+};
+
 /// Writes the name of a key with modifiers
 ///
 /// @param out String to receive the name
@@ -132,6 +139,20 @@ bool cxuiKeyParse(_Out_ CxUiKey* key, _Out_ uint32* mods, _In_ strref name);
 /// @param evMods The modifiers from a CxUiKeyEvent
 /// @return true if they match
 bool cxuiKeyMatches(CxUiKey key, uint32 mods, CxUiKey evKey, uint32 evMods);
+
+/// Gets which lock keys are on
+///
+/// macOS has no Num Lock or Scroll Lock: there CXUI_LOCK_Num is always set, as the keypad always
+/// types digits, and CXUI_LOCK_Scroll never is. UI thread only.
+///
+/// @return CxUiKeyLocks; 0 if cxui isn't running
+///
+/// Example:
+/// @code
+///   if (ev->key == CXUI_KEY_Pad7 && (cxuiKeyLocks() & CXUI_LOCK_Num))
+///       typeDigit(7);
+/// @endcode
+uint32 cxuiKeyLocks(void);
 
 /// @}  // end of cxui_keys group
 

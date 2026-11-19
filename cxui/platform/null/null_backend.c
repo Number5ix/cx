@@ -26,6 +26,7 @@ static bool nullClipboardHasText;
 static CxUiMonitor nullMonitors[4];     // UI thread only
 static int32 nullMonitorCount;
 static uint32 nullLockMax;              // the best pointer lock the backend gives; UI thread only
+static uint32 nullKeyLocks;             // CxUiKeyLocks; UI thread only
 
 static void nullWakeInitOnce(void* unused)
 {
@@ -49,6 +50,7 @@ static bool nullInit(flags_t flags)
     nullMeasures       = 0;
     nullTextNative     = (CxUiSize){ 0 };
     nullLockMax        = CXUI_POINTERLOCK_Raw;
+    nullKeyLocks       = 0;
     for (int32 i = 0; i < nullMonitorCount; i++)
         cxuiMonitorDestroy(&nullMonitors[i]);
     nullMonitorCount   = 1;
@@ -1488,6 +1490,11 @@ static uint32 nullCanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px)
     return nc->lockMode;
 }
 
+static uint32 nullKeyLocksGet(void)
+{
+    return nullKeyLocks;
+}
+
 static void nullDoubleClick(int64* time, int32* distance)
 {
     *time     = nullDoubleTime;
@@ -2354,6 +2361,11 @@ void cxuiTestSetPointerLockMax(uint32 mode)
     nullLockMax = mode;
 }
 
+void cxuiTestSetKeyLocks(uint32 locks)
+{
+    nullKeyLocks = locks;
+}
+
 void cxuiTestSetDoubleClick(int64 time, int32 distance)
 {
     nullDoubleTime     = time;
@@ -2451,6 +2463,7 @@ const CxUiBackend _cxuiNullBackend = {
     .canvasSetKeyCapture = nullCanvasSetKeyCapture,
     .canvasPointerLock   = nullCanvasPointerLock,
     .doubleClick      = nullDoubleClick,
+    .keyLocks         = nullKeyLocksGet,
 
     .panelCreate         = nullPanelCreate,
     .panelSetBounds      = nullPanelSetBounds,

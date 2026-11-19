@@ -235,6 +235,7 @@ bool _cxuiWin32SysKeyHeld(void);
 bool _cxuiWin32Pointer(_In_ CxUiPeer* p, HWND hwnd, _Inout_ bool* tracking, UINT msg, WPARAM wp, LPARAM lp);
 bool _cxuiWin32Wheel(UINT msg, WPARAM wp, LPARAM lp);
 void _cxuiWin32DoubleClick(int64* time, int32* distance);
+uint32 _cxuiWin32KeyLocks(void);
 void _cxuiWin32PeerFocus(CxUiPeer* p);
 bool _cxuiWin32TestNativeKey(CxUiPeer* p, CxUiKey key, uint32 mods);
 bool _cxuiWin32TestNativeClick(CxUiPeer* p, CxUiPoint px);

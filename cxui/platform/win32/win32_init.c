@@ -212,6 +212,7 @@ const CxUiBackend _cxuiWin32Backend = {
     .canvasSetKeyCapture = _cxuiWin32CanvasSetKeyCapture,
     .canvasPointerLock   = _cxuiWin32CanvasPointerLock,
     .doubleClick      = _cxuiWin32DoubleClick,
+    .keyLocks         = _cxuiWin32KeyLocks,
 
     .panelCreate         = _cxuiWin32PanelCreate,
     .panelSetBounds      = _cxuiWin32PanelSetBounds,

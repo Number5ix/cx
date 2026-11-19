@@ -99,6 +99,7 @@ uint32 _cxuiAppKitCanvasPointerLock(CxUiPeer* p, uint32 mode, CxUiPoint px);
 bool _cxuiAppKitCanvasTakesKeys(_In_opt_ id responder);
 bool _cxuiAppKitCanvasCaptureKey(_In_ id responder, _In_ NSEvent* ev);
 void _cxuiAppKitDoubleClick(int64* time, int32* distance);
+uint32 _cxuiAppKitKeyLocks(void);
 bool _cxuiAppKitTestExpose(CxUiPeer* p);
 bool _cxuiAppKitTestScreenOrigin(CxUiPeer* p, CxUiPoint* out);
 void _cxuiAppKitCanvasDestroy(CxUiPeer* p);

@@ -218,6 +218,7 @@ CxUiPoint _cxuiGtk4EventPx(_In_ GtkWidget* w, _In_ GdkEvent* ev, _Inout_ CxUiPoi
 // CxUiModifiers in a GDK modifier state
 uint32 _cxuiGtk4StateMods(GdkModifierType st);
 void _cxuiGtk4DoubleClick(int64* time, int32* distance);
+uint32 _cxuiGtk4KeyLocks(void);
 bool _cxuiGtk4TestNativeKey(CxUiPeer* p, CxUiKey key, uint32 mods);
 void _cxuiGtk4CanvasDestroy(CxUiPeer* p);
 

@@ -1067,6 +1067,7 @@ static const testspec tests[] = {
     { "cxui: Key Names", "cxuitest", "keynames" },
     { "cxui: Key Matching", "cxuitest", "keymatch" },
     { "cxui: Key Labels", "cxuitest", "keylabel" },
+    { "cxui: Lock Keys", "cxuitest", "keylocks" },
     { "cxui: Repeating Timer", "cxuitest", "timerrepeat" },
     { "cxui: Timer Start And Stop", "cxuitest", "timerstartstop" },
     { "cxui: Timers Across Sessions", "cxuitest", "timershutdown" },

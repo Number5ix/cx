@@ -315,3 +315,8 @@ CxUiKey _cxuiMnemonicKey(strref text)
     }
     return CXUI_KEY_None;
 }
+
+uint32 cxuiKeyLocks(void)
+{
+    return _cxui.backend && _cxui.backend->keyLocks ? _cxui.backend->keyLocks() : 0;
+}

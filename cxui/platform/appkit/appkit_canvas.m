@@ -879,6 +879,11 @@ void _cxuiAppKitDoubleClick(int64* time, int32* distance)
     *distance = (int32)(4 * NSScreen.mainScreen.backingScaleFactor);
 }
 
+uint32 _cxuiAppKitKeyLocks(void)
+{
+    return CXUI_LOCK_Num | ((NSEvent.modifierFlags & NSEventModifierFlagCapsLock) ? CXUI_LOCK_Caps : 0);
+}
+
 bool _cxuiAppKitTestExpose(CxUiPeer* p)
 {
     CxUiCanvasView* v = canvasView((AppKitCanvas*)p);

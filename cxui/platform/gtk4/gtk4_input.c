@@ -228,6 +228,18 @@ void _cxuiGtk4DoubleClick(int64* time, int32* distance)
     *distance = dist;
 }
 
+uint32 _cxuiGtk4KeyLocks(void)
+{
+    GdkDisplay* d = gdk_display_get_default();
+    GdkSeat* seat = d ? gdk_display_get_default_seat(d) : NULL;
+    GdkDevice* kb = seat ? gdk_seat_get_keyboard(seat) : NULL;
+    if (!kb)
+        return 0;
+    return (gdk_device_get_caps_lock_state(kb) ? CXUI_LOCK_Caps : 0) |
+           (gdk_device_get_num_lock_state(kb) ? CXUI_LOCK_Num : 0) |
+           (gdk_device_get_scroll_lock_state(kb) ? CXUI_LOCK_Scroll : 0);
+}
+
 // ---- tests ----
 
 #ifdef GDK_WINDOWING_X11

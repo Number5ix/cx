@@ -365,6 +365,7 @@ const CxUiBackend _cxuiAppKitBackend = {
     .canvasPointerLock   = _cxuiAppKitCanvasPointerLock,
     .surfaceGet       = _cxuiAppKitSurfaceGet,
     .doubleClick      = _cxuiAppKitDoubleClick,
+    .keyLocks         = _cxuiAppKitKeyLocks,
 
     .panelCreate         = _cxuiAppKitPanelCreate,
     .panelSetBounds      = _cxuiAppKitPanelSetBounds,

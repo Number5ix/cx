@@ -2356,6 +2356,13 @@ static int fParseKey(lua_State* L)
     return 2;
 }
 
+// cxui.keylocks(): the cxui.LOCK flags on
+static int fKeyLocks(lua_State* L)
+{
+    lua_pushinteger(L, cxuiKeyLocks());
+    return 1;
+}
+
 static int fRgba(lua_State* L)
 {
     uint32 r = (uint32)luaL_checkinteger(L, 1) & 0xff, g = (uint32)luaL_checkinteger(L, 2) & 0xff,
@@ -3064,6 +3071,7 @@ static const luaL_Reg functions[] = {
     { "keyname", fKeyName },
     { "keylabel", fKeyLabel },
     { "parsekey", fParseKey },
+    { "keylocks", fKeyLocks },
     { "rgba", fRgba },
     { "rgb", fRgba },
     { "flush", fFlush },
@@ -3109,6 +3117,8 @@ static void constants(lua_State* L)
     keyTable(L);
     constTable(L, "MOD", (const Const[]){ { "shift", CXUI_MOD_Shift }, { "ctrl", CXUI_MOD_Ctrl }, { "alt", CXUI_MOD_Alt },
                                           { "meta", CXUI_MOD_Meta }, { "primary", CXUI_MOD_Primary }, { NULL, 0 } });
+    constTable(L, "LOCK", (const Const[]){ { "caps", CXUI_LOCK_Caps }, { "num", CXUI_LOCK_Num },
+                                           { "scroll", CXUI_LOCK_Scroll }, { NULL, 0 } });
     constTable(L, "BUTTON", (const Const[]){ { "left", CXUI_BTN_Left }, { "middle", CXUI_BTN_Middle },
                                              { "right", CXUI_BTN_Right }, { "x1", CXUI_BTN_X1 }, { "x2", CXUI_BTN_X2 },
                                              { NULL, 0 } });

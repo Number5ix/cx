@@ -180,6 +180,7 @@ const CxUiBackend _cxuiGtk4Backend = {
     .canvasSetKeyCapture = _cxuiGtk4CanvasSetKeyCapture,
     .canvasPointerLock   = _cxuiGtk4CanvasPointerLock,
     .doubleClick      = _cxuiGtk4DoubleClick,
+    .keyLocks         = _cxuiGtk4KeyLocks,
 
     .panelCreate         = _cxuiGtk4PanelCreate,
 

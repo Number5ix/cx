@@ -418,6 +418,8 @@ CxUiResult cxuiTestKey(_In_ CxUiWidget* target, CxUiKey key, uint32 mods, bool d
 CxUiResult cxuiTestKeyScancode(_In_ CxUiWidget* target, CxUiKey key, uint32 mods, uint32 scancode, bool down);
 // The null backend's double-click time, in microseconds, and distance in pixels.
 void cxuiTestSetDoubleClick(int64 time, int32 distance);
+// The null backend's CxUiKeyLocks; reset to none when cxui starts. UI thread only.
+void cxuiTestSetKeyLocks(uint32 locks);
 
 // Where a realized canvas's top left is on the screen, in physical pixels. False where the platform
 // can't tell (Linux). Any backend; UI thread only.

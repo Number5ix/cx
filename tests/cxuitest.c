@@ -1002,6 +1002,18 @@ static bool uiTimer(CxUiTimer* t, int32 op)
     return cxuiCallSync(closureCreate(uiTimerOp, stvar(ptr, t), stvar(int32, op)));
 }
 
+// Lock keys read back as the platform reports them.
+UI_TEST(keylocks)
+{
+    uint32 none = cxuiKeyLocks();
+    cxuiTestSetKeyLocks(CXUI_LOCK_Num | CXUI_LOCK_Scroll);
+    uint32 set = cxuiKeyLocks();
+    if (none != 0 || set != (CXUI_LOCK_Num | CXUI_LOCK_Scroll))
+        TEST_FAIL(1, _SL("locks at start ${uint}, after setting Num and Scroll ${uint}"), stvar(uint32, none),
+                  stvar(uint32, set));
+    return 0;
+}
+
 // A repeating timer runs until its handler stops it, a period apart, timed from the end of each
 // call so a slow handler never has calls queue up.
 static int test_cxui_timerrepeat(void)
@@ -8656,8 +8668,8 @@ static int test_cxui_grp_windows(void)
 
 static int test_cxui_grp_keystimers(void)
 {
-    TEST_CHAIN(test_cxui_keyroundtrip, test_cxui_keynames, test_cxui_keymatch, test_cxui_keylabel, test_cxui_timerrepeat,
-               test_cxui_timerstartstop, test_cxui_timershutdown);
+    TEST_CHAIN(test_cxui_keyroundtrip, test_cxui_keynames, test_cxui_keymatch, test_cxui_keylabel, test_cxui_keylocks,
+               test_cxui_timerrepeat, test_cxui_timerstartstop, test_cxui_timershutdown);
 }
 
 static int test_cxui_grp_widgets(void)
@@ -11689,6 +11701,7 @@ testfunc cxuitest_funcs[] = {
     { "keynames", test_cxui_keynames },
     { "keymatch", test_cxui_keymatch },
     { "keylabel", test_cxui_keylabel },
+    { "keylocks", test_cxui_keylocks },
     { "timerrepeat", test_cxui_timerrepeat },
     { "timerstartstop", test_cxui_timerstartstop },
     { "timershutdown", test_cxui_timershutdown },

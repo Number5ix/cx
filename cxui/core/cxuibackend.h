@@ -191,6 +191,8 @@ typedef struct CxUiBackend {
     // The longest time between the presses of a double click, in microseconds, and how far apart
     // they may be, in physical pixels.
     void (*doubleClick)(int64* time, int32* distance);
+    // CxUiKeyLocks on now
+    uint32 (*keyLocks)(void);
 
     // ---- panels ----
     // A container's own native surface (kind CXUI_PEER_Panel) inside host, a window or another

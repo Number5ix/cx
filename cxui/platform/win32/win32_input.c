@@ -76,6 +76,12 @@ uint32 _cxuiWin32KeyMods(void)
     return mods;
 }
 
+uint32 _cxuiWin32KeyLocks(void)
+{
+    return ((GetKeyState(VK_CAPITAL) & 1) ? CXUI_LOCK_Caps : 0) | ((GetKeyState(VK_NUMLOCK) & 1) ? CXUI_LOCK_Num : 0) |
+           ((GetKeyState(VK_SCROLL) & 1) ? CXUI_LOCK_Scroll : 0);
+}
+
 _Use_decl_annotations_
 bool _cxuiWin32Key(CxUiPeer* p, UINT msg, WPARAM wp, LPARAM lp)
 {
