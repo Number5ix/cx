@@ -111,12 +111,18 @@ bool _cxuiGtk4Key(CxUiPeer* p, GdkEvent* ev)
     GdkEventType type = gdk_event_get_event_type(ev);
     if (type != GDK_KEY_PRESS && type != GDK_KEY_RELEASE)
         return false;
-    // The key without Shift or other levels, so Shift+1 is still 1
+    // The key without Shift or other levels, so Shift+1 is still 1. A key that types a digit only
+    // with Shift, as on a French keyboard, is that digit.
+    GdkDisplay* d = gdk_event_get_display(ev);
     guint keycode = gdk_key_event_get_keycode(ev);
+    int layout    = (int)gdk_key_event_get_layout(ev);
     guint keyval  = gdk_key_event_get_keyval(ev);
-    gdk_display_translate_key(gdk_event_get_display(ev), keycode, 0, (int)gdk_key_event_get_layout(ev), &keyval, NULL,
-                              NULL, NULL);
+    gdk_display_translate_key(d, keycode, 0, layout, &keyval, NULL, NULL, NULL);
     CxUiKey key = keyvalToKey(keyval);
+    if (key == CXUI_KEY_None &&
+        gdk_display_translate_key(d, keycode, GDK_SHIFT_MASK, layout, &keyval, NULL, NULL, NULL) &&
+        keyval >= GDK_KEY_0 && keyval <= GDK_KEY_9)
+        key = (CxUiKey)(CXUI_KEY_0 + (keyval - GDK_KEY_0));
     if (key == CXUI_KEY_None)
         key = keyvalToKey(gdk_key_event_get_keyval(ev));
     _cxuiNativeEnter();

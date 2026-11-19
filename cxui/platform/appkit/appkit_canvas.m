@@ -197,8 +197,16 @@ static CxUiKey keyCodeToKey(unsigned short code)
     return CXUI_KEY_None;
 }
 
-// Letters, digits and punctuation by what the layout puts on the key, without Shift; the rest by
-// the key's position.
+// The digit a key types with Shift, as on a French keyboard; CXUI_KEY_None if it isn't one
+static CxUiKey shiftedDigit(NSEvent* ev)
+{
+    NSString* s = [ev charactersByApplyingModifiers:NSEventModifierFlagShift];
+    unichar ch  = s.length == 1 ? [s characterAtIndex:0] : 0;
+    return ch >= '0' && ch <= '9' ? (CxUiKey)(CXUI_KEY_0 + (ch - '0')) : CXUI_KEY_None;
+}
+
+// Letters, digits and punctuation by what the layout puts on the key, without Shift, or a digit
+// typed with Shift; the rest by the key's position.
 static CxUiKey eventKey(NSEvent* ev)
 {
     CxUiKey key = keyCodeToKey(ev.keyCode);
@@ -206,7 +214,7 @@ static CxUiKey eventKey(NSEvent* ev)
         return key;
     NSString* s = ev.charactersIgnoringModifiers.lowercaseString;
     if (s.length != 1)
-        return CXUI_KEY_None;
+        return shiftedDigit(ev);
     unichar ch = [s characterAtIndex:0];
     if (ch >= 'a' && ch <= 'z')
         return (CxUiKey)(CXUI_KEY_A + (ch - 'a'));
